@@ -23,6 +23,7 @@ const ast = toTypeScriptAst(doc);
 assert.equal(ast.kind, 'typescript.module');
 assert.ok(ast.declarations.some((declaration) => declaration.kind === 'interface' && declaration.name === 'Todo'));
 assert.ok(ast.declarations.some((declaration) => declaration.kind === 'capabilityDescriptor' && declaration.name === 'HttpRequestCapability'));
+assert.equal(ast.declarations.find((declaration) => declaration.kind === 'interface' && declaration.name === 'Todo').sourceRef.semanticNodeId, 'ent_todo');
 assert.equal(renderTypeScriptAst(ast), out);
 assert.match(out, /export interface TodoInput/);
 assert.match(out, /tags\\?: ReadonlySet<string>/);
