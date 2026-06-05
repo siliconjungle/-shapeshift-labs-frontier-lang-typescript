@@ -123,45 +123,120 @@ export function toTypeScriptAst(document, options = {}) {
 }
 
 export function renderTypeScriptAst(ast) {
+  return renderTypeScriptAstWithSourceMap(ast).code;
+}
+
+export function renderTypeScriptAstWithSourceMap(ast, options = {}) {
   const lines = [];
-  lines.push(`// ${ast.banner}`, '');
-  for (const declaration of ast.declarations) {
+  const mappings = [];
+  const target = normalizeTarget(options);
+  const push = (...items) => {
+    for (const item of items) lines.push(...String(item).split('\n'));
+  };
+  push(`// ${ast.banner}`, '');
+  ast.declarations.forEach((declaration, index) => {
+    const startLine = lines.length + 1;
+    const startIndex = lines.length;
     if (declaration.kind === 'runtimeTypes') {
-      lines.push('export type FrontierPatchOperation =', "  | { op: 'set'; path: string; value: unknown }", "  | { op: 'remove'; path: string }", "  | { op: 'insert'; path: string; value: unknown }", "  | { op: 'merge'; path: string; value: unknown };", '');
-      lines.push('export interface FrontierLatticeDescriptor {', '  readonly name: string;', '  readonly carrier: string;', '  readonly laws: readonly string[];', '  readonly frontierCrdt?: { readonly packageName?: string; readonly exportName: string; readonly lawChecker?: string };', '}', '');
-      lines.push('export interface FrontierCapabilityDescriptor {', '  readonly capability: string;', '  readonly category?: string;', '  readonly input?: string;', '  readonly returns?: string;', '  readonly effects: readonly string[];', '  readonly resources: readonly string[];', '  readonly adapters: readonly unknown[];', '  readonly unsupportedTargets: readonly unknown[];', '}', '');
+      push('export type FrontierPatchOperation =', "  | { op: 'set'; path: string; value: unknown }", "  | { op: 'remove'; path: string }", "  | { op: 'insert'; path: string; value: unknown }", "  | { op: 'merge'; path: string; value: unknown };", '');
+      push('export interface FrontierLatticeDescriptor {', '  readonly name: string;', '  readonly carrier: string;', '  readonly laws: readonly string[];', '  readonly frontierCrdt?: { readonly packageName?: string; readonly exportName: string; readonly lawChecker?: string };', '}', '');
+      push('export interface FrontierCapabilityDescriptor {', '  readonly capability: string;', '  readonly category?: string;', '  readonly input?: string;', '  readonly returns?: string;', '  readonly effects: readonly string[];', '  readonly resources: readonly string[];', '  readonly adapters: readonly unknown[];', '  readonly unsupportedTargets: readonly unknown[];', '}', '');
     }
     if (declaration.kind === 'typeAlias') {
-      lines.push(`export type ${declaration.name}${declaration.parameters} = ${declaration.type};`, '');
+      push(`export type ${declaration.name}${declaration.parameters} = ${declaration.type};`, '');
     }
     if (declaration.kind === 'interface') {
-      lines.push(`export interface ${declaration.name}${declaration.parameters ?? ''} {`);
-      for (const field of declaration.fields) lines.push(`  ${field.name}${field.optional ? '?' : ''}: ${field.type};`);
-      lines.push('}', '');
+      push(`export interface ${declaration.name}${declaration.parameters ?? ''} {`);
+      for (const field of declaration.fields) push(`  ${field.name}${field.optional ? '?' : ''}: ${field.type};`);
+      push('}', '');
     }
     if (declaration.kind === 'latticeDescriptor') {
-      lines.push(`export const ${declaration.name}: FrontierLatticeDescriptor = {`);
-      lines.push(`  name: ${JSON.stringify(declaration.value.name)},`);
-      lines.push(`  carrier: ${JSON.stringify(declaration.value.carrier)},`);
-      lines.push(`  laws: ${JSON.stringify(declaration.value.laws)},`);
-      if (declaration.value.frontierCrdt) lines.push(`  frontierCrdt: ${JSON.stringify(declaration.value.frontierCrdt)}`);
-      lines.push('};', '');
+      push(`export const ${declaration.name}: FrontierLatticeDescriptor = {`);
+      push(`  name: ${JSON.stringify(declaration.value.name)},`);
+      push(`  carrier: ${JSON.stringify(declaration.value.carrier)},`);
+      push(`  laws: ${JSON.stringify(declaration.value.laws)},`);
+      if (declaration.value.frontierCrdt) push(`  frontierCrdt: ${JSON.stringify(declaration.value.frontierCrdt)}`);
+      push('};', '');
     }
     if (declaration.kind === 'capabilityDescriptor') {
-      lines.push(`export const ${declaration.name}: FrontierCapabilityDescriptor = ${JSON.stringify(declaration.value, null, 2)};`, '');
+      push(`export const ${declaration.name}: FrontierCapabilityDescriptor = ${JSON.stringify(declaration.value, null, 2)};`, '');
     }
     if (declaration.kind === 'externFunction') {
-      lines.push(`export declare function ${declaration.name}(input: ${declaration.inputType}): ${declaration.returnType};`, '');
+      push(`export declare function ${declaration.name}(input: ${declaration.inputType}): ${declaration.returnType};`, '');
     }
     if (declaration.kind === 'actionFunction') {
-      lines.push(`export function ${declaration.name}(`, '  state: unknown,', `  input: ${declaration.inputType},`, '  env: Record<string, unknown> = {}', `): ${declaration.returnType} {`, '  void state;', '  void input;', '  void env;', `  return [] as ${declaration.returnType};`, '}', '');
+      push(`export function ${declaration.name}(`, '  state: unknown,', `  input: ${declaration.inputType},`, '  env: Record<string, unknown> = {}', `): ${declaration.returnType} {`, '  void state;', '  void input;', '  void env;', `  return [] as ${declaration.returnType};`, '}', '');
     }
-  }
-  return `${lines.join('\n').trimEnd()}\n`;
+    const generatedSpan = declarationBlockSpan(lines, startIndex, startLine, declaration, target, options.targetPath);
+    if (declaration.sourceRef?.semanticNodeId && generatedSpan) {
+      mappings.push(definedObject({
+        id: `map_${idFragment(declaration.sourceRef.semanticNodeId)}_${index}`,
+        semanticNodeId: declaration.sourceRef.semanticNodeId,
+        nativeSourceId: options.nativeSourceId,
+        semanticSymbolId: options.semanticSymbolIdsBySemanticNodeId?.[declaration.sourceRef.semanticNodeId],
+        semanticOccurrenceId: options.semanticOccurrenceIdsBySemanticNodeId?.[declaration.sourceRef.semanticNodeId],
+        sourceSpan: options.sourceSpansBySemanticNodeId?.[declaration.sourceRef.semanticNodeId],
+        generatedSpan,
+        target,
+        generatedName: declaration.name,
+        evidenceIds: options.evidence?.map((record) => record.id),
+        lossIds: options.lossIdsBySemanticNodeId?.[declaration.sourceRef.semanticNodeId],
+        precision: 'declaration',
+        metadata: {
+          generatedSpanStrategy: 'typescript-renderer-declaration-block',
+          sourceMapImplication: 'Generated span covers the emitted declaration block and is not token exact.',
+          semanticIndexImplication: 'Mapping is anchored by semanticNodeId; symbol and occurrence ids are optional caller-provided links.',
+          lossAccountingImplication: 'No loss ids are inferred by the printer; caller-provided loss ids are copied when available.',
+          mergeReadinessImplication: 'Suitable for declaration-level overlap review, not fine-grained token merge admission.',
+          semanticNodeKind: declaration.sourceRef.semanticNodeKind,
+          semanticNodeName: declaration.sourceRef.semanticNodeName,
+          regionIds: declaration.sourceRef.regionIds
+        }
+      }));
+    }
+  });
+  const code = `${lines.join('\n').trimEnd()}\n`;
+  return {
+    code,
+    sourceMap: definedObject({
+      kind: 'frontier.lang.sourceMap',
+      version: 1,
+      id: options.sourceMapId ?? `sourcemap_${idFragment(ast.kind)}_typescript`,
+      sourcePath: options.sourcePath,
+      sourceHash: options.sourceHash,
+      target,
+      targetPath: options.targetPath,
+      targetHash: options.targetHash,
+      semanticIndexId: options.semanticIndexId,
+      universalAstId: options.universalAstId,
+      nativeAstId: options.nativeAstId,
+      nativeSourceId: options.nativeSourceId,
+      mappings,
+      evidence: options.evidence ?? [],
+      metadata: {
+        generatedSpanStrategy: 'typescript-renderer-declaration-block',
+        precision: 'declaration',
+        sourceMapImplication: 'Approximate generated spans are emitted as sidecar mappings without rewriting the printer.',
+        semanticIndexImplication: 'Semantic index linkage remains optional and can be attached through ids supplied in options.',
+        lossAccountingImplication: 'The renderer does not create loss records; existing loss ids can be associated per semantic node.',
+        mergeReadinessImplication: 'Declaration-block mappings can guide generated-output review but should not be treated as token-exact source maps.',
+        ...(options.metadata ?? {})
+      }
+    })
+  };
 }
 
 export function emitTypeScript(document, options = {}) {
   return renderTypeScriptAst(toTypeScriptAst(document, options));
+}
+
+export function emitTypeScriptWithSourceMap(document, options = {}) {
+  const ast = toTypeScriptAst(document, options);
+  const result = renderTypeScriptAstWithSourceMap(ast, {
+    sourceMapId: options.sourceMapId ?? `sourcemap_${idFragment(document.id)}_typescript`,
+    ...options
+  });
+  return { ...result, ast };
 }
 
 function typeNodeToAst(node) {
@@ -179,4 +254,36 @@ function typeNodeToAst(node) {
     fields: (node.fields ?? []).map((field) => ({ name: safeIdentifier(field.name), type: toTypeScriptType(field.type), optional: Boolean(field.optional) })),
     sourceRef: sourceRef(node, { regionIds: (node.fields ?? []).map((field) => field.id) })
   };
+}
+
+function declarationBlockSpan(lines, startIndex, startLine, declaration, target, targetPath) {
+  let endIndex = lines.length - 1;
+  while (endIndex >= startIndex && lines[endIndex] === '') endIndex -= 1;
+  if (endIndex < startIndex) return undefined;
+  return definedObject({
+    path: targetPath,
+    target,
+    targetPath,
+    generatedName: declaration.name,
+    startLine,
+    startColumn: 1,
+    endLine: endIndex + 1,
+    endColumn: lines[endIndex].length + 1
+  });
+}
+
+function normalizeTarget(options) {
+  return definedObject({
+    ...(options.target ?? {}),
+    language: options.target?.language ?? 'typescript',
+    emitPath: options.target?.emitPath ?? options.targetPath
+  });
+}
+
+function definedObject(object) {
+  return Object.fromEntries(Object.entries(object).filter(([, value]) => value !== undefined));
+}
+
+function idFragment(value) {
+  return safeIdentifier(String(value ?? 'unknown')).replace(/^_+/, '') || 'unknown';
 }

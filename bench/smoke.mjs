@@ -1,6 +1,6 @@
 import { performance } from 'node:perf_hooks';
 import { createDocument, entityNode } from '@shapeshift-labs/frontier-lang-kernel';
-import { emitTypeScript } from '../dist/index.js';
+import { emitTypeScript, emitTypeScriptWithSourceMap } from '../dist/index.js';
 
 const entities = Array.from({ length: 200 }, (_, index) => entityNode({ id: `entity_${index}`, name: `Entity${index}`, fields: [
   { id: `field_title_${index}`, name: 'title', type: 'Text' },
@@ -11,4 +11,15 @@ const start = performance.now();
 let out = '';
 for (let index = 0; index < 250; index += 1) out = emitTypeScript(document);
 const durationMs = performance.now() - start;
-console.log(JSON.stringify({ emits: 250, bytes: out.length, durationMs: Math.round(durationMs * 100) / 100 }, null, 2));
+const mapStart = performance.now();
+let mapped;
+for (let index = 0; index < 250; index += 1) mapped = emitTypeScriptWithSourceMap(document, { targetPath: 'bench.ts' });
+const sourceMapDurationMs = performance.now() - mapStart;
+console.log(JSON.stringify({
+  emits: 250,
+  bytes: out.length,
+  durationMs: Math.round(durationMs * 100) / 100,
+  sourceMapEmits: 250,
+  sourceMapMappings: mapped.sourceMap.mappings.length,
+  sourceMapDurationMs: Math.round(sourceMapDurationMs * 100) / 100
+}, null, 2));

@@ -186,6 +186,27 @@ npm install @shapeshift-labs/frontier-lang-typescript
 
 This package depends on `@shapeshift-labs/frontier-lang-kernel` and owns TypeScript/JavaScript projection concerns. The kernel stays target-neutral.
 
+## Source Map Sidecars
+
+Use the standard emitter when you only need generated TypeScript, or opt into declaration-level source-map sidecars for semantic merge review:
+
+```js
+import { emitTypeScript, emitTypeScriptWithSourceMap } from '@shapeshift-labs/frontier-lang-typescript';
+
+const code = emitTypeScript(document);
+const projected = emitTypeScriptWithSourceMap(document, {
+  sourcePath: 'todo.frontier',
+  targetPath: 'todo.ts',
+  semanticIndexId: 'semantic-index-todo'
+});
+
+console.log(projected.code === code); // true
+console.log(projected.sourceMap.kind); // "frontier.lang.sourceMap"
+console.log(projected.sourceMap.mappings[0].precision); // "declaration"
+```
+
+The sidecar intentionally records declaration-block spans, not token-exact Source Map v3 mappings. It is useful for merge admission, generated-output review, and semantic ownership checks while exact parser/printer adapters are still catching up.
+
 ## Benchmarks
 
 Run the package-local benchmark with:
