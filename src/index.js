@@ -5,6 +5,19 @@ function safeIdentifier(name) {
 
 function toTypeScriptType(type) {
   const primitive = { Text: 'string', String: 'string', Bool: 'boolean', Boolean: 'boolean', Int: 'number', Float: 'number', Number: 'number', Instant: 'string', Json: 'unknown', Patch: 'FrontierPatchOperation[]' };
+  if (!type) return 'unknown';
+  if (typeof type !== 'string') {
+    if (type.kind === 'ref') return `${safeIdentifier(type.name)}${type.args?.length ? `<${type.args.map(toTypeScriptType).join(', ')}>` : ''}`;
+    if (type.kind === 'set') return `ReadonlySet<${toTypeScriptType(type.item)}>`;
+    if (type.kind === 'list') return `readonly ${toTypeScriptType(type.item)}[]`;
+    if (type.kind === 'map') return `ReadonlyMap<${toTypeScriptType(type.key)}, ${toTypeScriptType(type.value)}>`;
+    if (type.kind === 'record') return `{ ${type.fields.map((field) => `${safeIdentifier(field.name)}${field.optional ? '?' : ''}: ${toTypeScriptType(field.type)}`).join('; ')} }`;
+    if (type.kind === 'union') return type.variants.map((variant) => {
+      const fields = variant.fields?.length ? ` & { ${variant.fields.map((field) => `${safeIdentifier(field.name)}${field.optional ? '?' : ''}: ${toTypeScriptType(field.type)}`).join('; ')} }` : '';
+      return `{ kind: ${JSON.stringify(variant.name)} }${fields}`;
+    }).join(' | ') || 'never';
+    return 'unknown';
+  }
   if (primitive[type]) return primitive[type];
   const setMatch = /^Set<(.+)>$/.exec(type);
   if (setMatch) return `ReadonlySet<${toTypeScriptType(setMatch[1].trim())}>`;
@@ -22,12 +35,44 @@ export function emitTypeScript(document, options = {}) {
   lines.push(`// ${banner}`, '');
   if (options.includeRuntimeTypes ?? true) {
     lines.push('export type FrontierPatchOperation =', "  | { op: 'set'; path: string; value: unknown }", "  | { op: 'remove'; path: string }", "  | { op: 'insert'; path: string; value: unknown }", "  | { op: 'merge'; path: string; value: unknown };", '');
+    lines.push('export interface FrontierLatticeDescriptor {', '  readonly name: string;', '  readonly carrier: string;', '  readonly laws: readonly string[];', '  readonly frontierCrdt?: { readonly packageName?: string; readonly exportName: string; readonly lawChecker?: string };', '}', '');
+  }
+  for (const node of Object.values(document.nodes)) {
+    if (node.kind === 'type') {
+      emitTypeNode(lines, node);
+    }
+  }
+  for (const node of Object.values(document.nodes)) {
+    if (node.kind === 'lattice') {
+      lines.push(`export const ${safeIdentifier(node.name)}Lattice: FrontierLatticeDescriptor = {`);
+      lines.push(`  name: ${JSON.stringify(node.name)},`);
+      lines.push(`  carrier: ${JSON.stringify(toTypeScriptType(node.carrier))},`);
+      lines.push(`  laws: ${JSON.stringify(node.laws ?? [])},`);
+      if (node.frontierCrdt) {
+        lines.push(`  frontierCrdt: ${JSON.stringify(node.frontierCrdt)}`);
+      }
+      lines.push('};', '');
+    }
   }
   for (const node of Object.values(document.nodes)) {
     if (node.kind === 'entity') {
       lines.push(`export interface ${safeIdentifier(node.name)} {`);
       for (const field of node.fields) lines.push(`  ${safeIdentifier(field.name)}: ${toTypeScriptType(field.type)};`);
       lines.push('}', '');
+    }
+  }
+  for (const node of Object.values(document.nodes)) {
+    if (node.kind === 'state') {
+      lines.push(`export interface ${safeIdentifier(node.name)}State {`);
+      for (const collection of node.collections) lines.push(`  ${safeIdentifier(collection.name)}: ${toTypeScriptType(collection.type)};`);
+      lines.push('}', '');
+    }
+  }
+  for (const node of Object.values(document.nodes)) {
+    if (node.kind === 'extern') {
+      const inputType = node.signature?.input ? toTypeScriptType(node.signature.input) : 'unknown';
+      const returnType = node.signature?.returns ? toTypeScriptType(node.signature.returns) : 'unknown';
+      lines.push(`export declare function ${safeIdentifier(node.name)}(input: ${inputType}): ${returnType};`, '');
     }
   }
   for (const node of Object.values(document.nodes)) {
@@ -38,4 +83,19 @@ export function emitTypeScript(document, options = {}) {
     }
   }
   return `${lines.join('\n').trimEnd()}\n`;
+}
+
+function emitTypeNode(lines, node) {
+  const params = node.parameters?.length ? `<${node.parameters.map(safeIdentifier).join(', ')}>` : '';
+  if (node.type) {
+    lines.push(`export type ${safeIdentifier(node.name)}${params} = ${toTypeScriptType(node.type)};`, '');
+    return;
+  }
+  if (node.variants?.length) {
+    lines.push(`export type ${safeIdentifier(node.name)}${params} = ${toTypeScriptType({ kind: 'union', variants: node.variants })};`, '');
+    return;
+  }
+  lines.push(`export interface ${safeIdentifier(node.name)}${params} {`);
+  for (const field of node.fields ?? []) lines.push(`  ${safeIdentifier(field.name)}${field.optional ? '?' : ''}: ${toTypeScriptType(field.type)};`);
+  lines.push('}', '');
 }
