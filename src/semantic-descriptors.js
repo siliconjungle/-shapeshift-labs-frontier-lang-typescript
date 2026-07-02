@@ -2,7 +2,7 @@ export function semanticDescriptorDeclarations(document, context) {
   const declarations = [];
   for (const node of Object.values(document.nodes)) {
     if (node.kind === 'action') declarations.push(actionDescriptor(node, context));
-    if (node.kind === 'effect') declarations.push(effectDescriptor(node, context));
+    if (node.kind === 'effect') declarations.push(effectDescriptor(node, context), effectRunnerFunction(node, context));
     if (node.kind === 'extern') declarations.push(externDescriptor(node, context));
     if (node.kind === 'state') declarations.push(stateDescriptor(node, context));
     if (node.kind === 'migration') declarations.push(migrationDescriptor(node, context));
@@ -13,6 +13,7 @@ export function semanticDescriptorDeclarations(document, context) {
 }
 
 export function renderSemanticDescriptorDeclaration(declaration) {
+  if (declaration.kind === 'effectRunnerFunction') return renderEffectRunnerFunction(declaration);
   const type = {
     stateDescriptor: 'FrontierStateDescriptor',
     effectDescriptor: 'FrontierEffectDescriptor',
@@ -57,6 +58,35 @@ function effectDescriptor(node, { safeIdentifier, toTypeScriptType, sourceRef })
     },
     sourceRef: sourceRef(node)
   };
+}
+
+function effectRunnerFunction(node, { safeIdentifier, toTypeScriptType, sourceRef }) {
+  return {
+    kind: 'effectRunnerFunction',
+    name: `run${safeIdentifier(node.name)}Effect`,
+    inputType: node.input ? toTypeScriptType(node.input) : 'unknown',
+    returnType: node.returns ? toTypeScriptType(node.returns) : 'unknown',
+    value: {
+      name: node.name,
+      capability: node.capability,
+      resources: node.resources ?? [],
+      semantics: node.semantics
+    },
+    sourceRef: sourceRef(node)
+  };
+}
+
+function renderEffectRunnerFunction(declaration) {
+  return [
+    `export async function ${declaration.name}(input: ${declaration.inputType}, env: FrontierEffectEnvironment): Promise<${declaration.returnType}> {`,
+    `  const result = await env.invoke(${JSON.stringify(declaration.value.capability)}, input, {`,
+    `    effect: ${JSON.stringify(declaration.value.name)},`,
+    `    resources: ${JSON.stringify(declaration.value.resources)},`,
+    `    semantics: ${JSON.stringify(declaration.value.semantics ?? null)}`,
+    '  });',
+    `  return result as ${declaration.returnType};`,
+    '}'
+  ].join('\n');
 }
 
 function externDescriptor(node, { safeIdentifier, toTypeScriptType, sourceRef }) {
