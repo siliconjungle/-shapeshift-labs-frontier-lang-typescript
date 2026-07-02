@@ -1,4 +1,6 @@
 import { renderSemanticDescriptorDeclaration, semanticDescriptorDeclarations } from './semantic-descriptors.js';
+import { viewPropsType, viewRenderNodeToAst } from './render-descriptors.js';
+import { renderRuntimeTypes, renderViewRenderFunctionDeclaration } from './render-printers.js';
 
 function safeIdentifier(name) {
   const identifier = name.replace(/[^A-Za-z0-9_$]/g, '_');
@@ -103,12 +105,22 @@ export function toTypeScriptAst(document, options = {}) {
     }
   }
   for (const node of Object.values(document.nodes)) {
-    if (node.kind === 'view') declarations.push({
-      kind: 'viewDescriptor',
-      name: `${safeIdentifier(node.name)}View`,
-      value: { name: node.name, reads: node.reads ?? [], dispatches: node.dispatches ?? [], props: node.props ?? [], events: node.events ?? [], renders: node.renders ?? [] },
-      sourceRef: sourceRef(node, { regionIds: [...(node.props ?? []).map((prop) => prop.id), ...(node.events ?? []).map((event) => event.id), ...(node.renders ?? []).map((render) => render.id)] })
-    });
+    if (node.kind === 'view') {
+      const viewSourceRef = sourceRef(node, { regionIds: [...(node.props ?? []).map((prop) => prop.id), ...(node.events ?? []).map((event) => event.id), ...(node.renders ?? []).map((render) => render.id)] });
+      declarations.push({
+        kind: 'viewDescriptor',
+        name: `${safeIdentifier(node.name)}View`,
+        value: { name: node.name, reads: node.reads ?? [], dispatches: node.dispatches ?? [], props: node.props ?? [], events: node.events ?? [], renders: node.renders ?? [] },
+        sourceRef: viewSourceRef
+      });
+      if (node.renders?.length) declarations.push({
+        kind: 'viewRenderFunction',
+        name: `render${safeIdentifier(node.name)}View`,
+        propsType: viewPropsType(node.props, { safeIdentifier, toTypeScriptType }),
+        renders: node.renders.map(viewRenderNodeToAst),
+        sourceRef: viewSourceRef
+      });
+    }
   }
   for (const node of Object.values(document.nodes)) {
     if (node.kind === 'extern') {
@@ -151,17 +163,7 @@ export function renderTypeScriptAstWithSourceMap(ast, options = {}) {
     const startLine = lines.length + 1;
     const startIndex = lines.length;
     if (declaration.kind === 'runtimeTypes') {
-      push('export type FrontierPatchOperation =', "  | { op: 'set'; path: string; value: unknown }", "  | { op: 'remove'; path: string }", "  | { op: 'insert'; path: string; value: unknown }", "  | { op: 'merge'; path: string; value: unknown };", '');
-      push('export interface FrontierLatticeDescriptor {', '  readonly name: string;', '  readonly carrier: string;', '  readonly laws: readonly string[];', '  readonly frontierCrdt?: { readonly packageName?: string; readonly exportName: string; readonly lawChecker?: string };', '}', '');
-      push('export interface FrontierCapabilityDescriptor {', '  readonly capability: string;', '  readonly category?: string;', '  readonly input?: string;', '  readonly returns?: string;', '  readonly effects: readonly string[];', '  readonly resources: readonly string[];', '  readonly adapters: readonly unknown[];', '  readonly unsupportedTargets: readonly unknown[];', '}', '');
-      push('export interface FrontierViewDescriptor {', '  readonly name: string;', '  readonly reads: readonly string[];', '  readonly dispatches: readonly string[];', '  readonly props: readonly unknown[];', '  readonly events: readonly unknown[];', '  readonly renders: readonly unknown[];', '}', '');
-      push('export interface FrontierStateDescriptor {', '  readonly name: string;', '  readonly collections: readonly unknown[];', '}', '');
-      push('export interface FrontierEffectDescriptor {', '  readonly name: string;', '  readonly capability: string;', '  readonly input?: string;', '  readonly returns?: string;', '  readonly resources: readonly string[];', '  readonly semantics?: unknown;', '}', '');
-      push('export interface FrontierActionDescriptor {', '  readonly name: string;', '  readonly input?: string;', '  readonly returns?: string;', '  readonly reads: readonly string[];', '  readonly writes: readonly string[];', '  readonly uses: readonly string[];', '  readonly throws: readonly string[];', '  readonly body: readonly unknown[];', '}', '');
-      push('export interface FrontierExternDescriptor {', '  readonly name: string;', '  readonly language: string;', '  readonly symbol: string;', '  readonly capability?: string;', '  readonly input?: string;', '  readonly returns?: string;', '  readonly effects: readonly string[];', '  readonly resources: readonly string[];', '  readonly target?: unknown;', '}', '');
-      push('export interface FrontierMigrationDescriptor {', '  readonly name: string;', '  readonly fromVersion: string;', '  readonly toVersion: string;', '  readonly changes: readonly unknown[];', '  readonly invariants: readonly string[];', '}', '');
-      push('export interface FrontierTargetDescriptor {', '  readonly name: string;', '  readonly target: unknown;', '}', '');
-      push('export interface FrontierNativeSourceDescriptor {', '  readonly name: string;', '  readonly language: string;', '  readonly parser?: string;', '  readonly parserVersion?: string;', '  readonly sourcePath?: string;', '  readonly sourceHash?: string;', '  readonly symbol?: string;', '  readonly ast?: unknown;', '  readonly frontierNodeIds: readonly string[];', '  readonly losses: readonly unknown[];', '  readonly target?: unknown;', '}', '');
+      renderRuntimeTypes(push);
     }
     if (declaration.kind === 'typeAlias') {
       push(`export type ${declaration.name}${declaration.parameters} = ${declaration.type};`, '');
@@ -184,6 +186,9 @@ export function renderTypeScriptAstWithSourceMap(ast, options = {}) {
     }
     if (declaration.kind === 'viewDescriptor') {
       push(`export const ${declaration.name}: FrontierViewDescriptor = ${JSON.stringify(declaration.value, null, 2)};`, '');
+    }
+    if (declaration.kind === 'viewRenderFunction') {
+      renderViewRenderFunctionDeclaration(declaration, push, { safeIdentifier });
     }
     const semanticDescriptor = renderSemanticDescriptorDeclaration(declaration);
     if (semanticDescriptor) push(semanticDescriptor, '');
