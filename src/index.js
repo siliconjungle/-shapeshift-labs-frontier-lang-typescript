@@ -1,3 +1,5 @@
+import { renderSemanticDescriptorDeclaration, semanticDescriptorDeclarations } from './semantic-descriptors.js';
+
 function safeIdentifier(name) {
   const identifier = name.replace(/[^A-Za-z0-9_$]/g, '_');
   return /^[A-Za-z_$]/.test(identifier) ? identifier : `_${identifier}`;
@@ -81,6 +83,7 @@ export function toTypeScriptAst(document, options = {}) {
       });
     }
   }
+  declarations.push(...semanticDescriptorDeclarations(document, { safeIdentifier, toTypeScriptType, sourceRef }));
   for (const node of Object.values(document.nodes)) {
     if (node.kind === 'entity') declarations.push({
       kind: 'interface',
@@ -90,12 +93,14 @@ export function toTypeScriptAst(document, options = {}) {
     });
   }
   for (const node of Object.values(document.nodes)) {
-    if (node.kind === 'state') declarations.push({
-      kind: 'interface',
-      name: `${safeIdentifier(node.name)}State`,
-      fields: node.collections.map((collection) => ({ name: safeIdentifier(collection.name), type: toTypeScriptType(collection.type), optional: false })),
-      sourceRef: sourceRef(node, { regionIds: node.collections.map((collection) => collection.id) })
-    });
+    if (node.kind === 'state') {
+      declarations.push({
+        kind: 'interface',
+        name: `${safeIdentifier(node.name)}State`,
+        fields: node.collections.map((collection) => ({ name: safeIdentifier(collection.name), type: toTypeScriptType(collection.type), optional: false })),
+        sourceRef: sourceRef(node, { regionIds: node.collections.map((collection) => collection.id) })
+      });
+    }
   }
   for (const node of Object.values(document.nodes)) {
     if (node.kind === 'view') declarations.push({
@@ -150,6 +155,13 @@ export function renderTypeScriptAstWithSourceMap(ast, options = {}) {
       push('export interface FrontierLatticeDescriptor {', '  readonly name: string;', '  readonly carrier: string;', '  readonly laws: readonly string[];', '  readonly frontierCrdt?: { readonly packageName?: string; readonly exportName: string; readonly lawChecker?: string };', '}', '');
       push('export interface FrontierCapabilityDescriptor {', '  readonly capability: string;', '  readonly category?: string;', '  readonly input?: string;', '  readonly returns?: string;', '  readonly effects: readonly string[];', '  readonly resources: readonly string[];', '  readonly adapters: readonly unknown[];', '  readonly unsupportedTargets: readonly unknown[];', '}', '');
       push('export interface FrontierViewDescriptor {', '  readonly name: string;', '  readonly reads: readonly string[];', '  readonly dispatches: readonly string[];', '  readonly props: readonly unknown[];', '  readonly events: readonly unknown[];', '  readonly renders: readonly unknown[];', '}', '');
+      push('export interface FrontierStateDescriptor {', '  readonly name: string;', '  readonly collections: readonly unknown[];', '}', '');
+      push('export interface FrontierEffectDescriptor {', '  readonly name: string;', '  readonly capability: string;', '  readonly input?: string;', '  readonly returns?: string;', '  readonly resources: readonly string[];', '  readonly semantics?: unknown;', '}', '');
+      push('export interface FrontierActionDescriptor {', '  readonly name: string;', '  readonly input?: string;', '  readonly returns?: string;', '  readonly reads: readonly string[];', '  readonly writes: readonly string[];', '  readonly uses: readonly string[];', '  readonly throws: readonly string[];', '  readonly body: readonly unknown[];', '}', '');
+      push('export interface FrontierExternDescriptor {', '  readonly name: string;', '  readonly language: string;', '  readonly symbol: string;', '  readonly capability?: string;', '  readonly input?: string;', '  readonly returns?: string;', '  readonly effects: readonly string[];', '  readonly resources: readonly string[];', '  readonly target?: unknown;', '}', '');
+      push('export interface FrontierMigrationDescriptor {', '  readonly name: string;', '  readonly fromVersion: string;', '  readonly toVersion: string;', '  readonly changes: readonly unknown[];', '  readonly invariants: readonly string[];', '}', '');
+      push('export interface FrontierTargetDescriptor {', '  readonly name: string;', '  readonly target: unknown;', '}', '');
+      push('export interface FrontierNativeSourceDescriptor {', '  readonly name: string;', '  readonly language: string;', '  readonly parser?: string;', '  readonly parserVersion?: string;', '  readonly sourcePath?: string;', '  readonly sourceHash?: string;', '  readonly symbol?: string;', '  readonly ast?: unknown;', '  readonly frontierNodeIds: readonly string[];', '  readonly losses: readonly unknown[];', '  readonly target?: unknown;', '}', '');
     }
     if (declaration.kind === 'typeAlias') {
       push(`export type ${declaration.name}${declaration.parameters} = ${declaration.type};`, '');
@@ -173,6 +185,8 @@ export function renderTypeScriptAstWithSourceMap(ast, options = {}) {
     if (declaration.kind === 'viewDescriptor') {
       push(`export const ${declaration.name}: FrontierViewDescriptor = ${JSON.stringify(declaration.value, null, 2)};`, '');
     }
+    const semanticDescriptor = renderSemanticDescriptorDeclaration(declaration);
+    if (semanticDescriptor) push(semanticDescriptor, '');
     if (declaration.kind === 'externFunction') {
       push(`export declare function ${declaration.name}(input: ${declaration.inputType}): ${declaration.returnType};`, '');
     }
