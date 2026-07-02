@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { actionNode, capabilityNode, createDocument, entityNode, externNode, latticeNode, stateNode, typeNode } from '@shapeshift-labs/frontier-lang-kernel';
+import { actionNode, capabilityNode, createDocument, entityNode, externNode, latticeNode, stateNode, typeNode, viewNode } from '@shapeshift-labs/frontier-lang-kernel';
 import { emitTypeScript, emitTypeScriptWithSourceMap, renderTypeScriptAst, renderTypeScriptAstWithSourceMap, toTypeScriptAst } from '../dist/index.js';
 const doc = createDocument({ id: 'mod_todo', name: 'TodoApp', nodes: [
   typeNode({ id: 'type_input', name: 'TodoInput', fields: [
@@ -15,6 +15,7 @@ const doc = createDocument({ id: 'mod_todo', name: 'TodoApp', nodes: [
     { target: { language: 'typescript', platform: 'node', packageName: 'undici' }, symbol: 'fetch', kind: 'library' }
   ] }),
   stateNode({ id: 'state_todo', name: 'TodoDb', collections: [{ id: 'todos', name: 'todos', type: { kind: 'map', key: 'Text', value: 'Todo' } }] }),
+  viewNode({ id: 'view_todo_list', name: 'TodoList', reads: ['TodoDb.todos'], dispatches: ['action_add'], props: [{ id: 'view_prop_disabled', name: 'disabled', type: 'Boolean' }], events: [{ id: 'view_event_save', name: 'save', action: 'action_add' }], renders: [{ id: 'render_save_button', kind: 'element', tagName: 'Button', identityKey: 'save', text: 'Save', props: [{ name: 'disabled', expression: 'disabled' }], events: [{ name: 'press', action: 'save' }] }] }),
   externNode({ id: 'extern_persist', name: 'persistTodo', language: 'typescript', symbol: 'persistTodo', signature: { input: 'TodoInput', returns: 'Patch' } }),
   actionNode({ id: 'action_add', name: 'addTodo', input: 'TodoInput', returns: 'Patch' })
 ] });
@@ -43,6 +44,7 @@ const emitted = emitTypeScriptWithSourceMap(doc, { targetPath: 'todo.ts' });
 assert.equal(ast.kind, 'typescript.module');
 assert.ok(ast.declarations.some((declaration) => declaration.kind === 'interface' && declaration.name === 'Todo'));
 assert.ok(ast.declarations.some((declaration) => declaration.kind === 'capabilityDescriptor' && declaration.name === 'HttpRequestCapability'));
+assert.ok(ast.declarations.some((declaration) => declaration.kind === 'viewDescriptor' && declaration.name === 'TodoListView'));
 assert.equal(ast.declarations.find((declaration) => declaration.kind === 'interface' && declaration.name === 'Todo').sourceRef.semanticNodeId, 'ent_todo');
 assert.equal(renderTypeScriptAst(ast), out);
 assert.equal(rendered.code, out);
@@ -71,6 +73,8 @@ assert.match(out, /export interface TodoInput/);
 assert.match(out, /tags\\?: ReadonlySet<string>/);
 assert.match(out, /export const TagSetLattice/);
 assert.match(out, /export const HttpRequestCapability/);
+assert.match(out, /export const TodoListView/);
+assert.match(out, /"tagName": "Button"/);
 assert.match(out, /http\.request/);
 assert.match(out, /createCrdtOrSetLattice/);
 assert.match(out, /export interface Todo/);

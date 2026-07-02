@@ -98,6 +98,14 @@ export function toTypeScriptAst(document, options = {}) {
     });
   }
   for (const node of Object.values(document.nodes)) {
+    if (node.kind === 'view') declarations.push({
+      kind: 'viewDescriptor',
+      name: `${safeIdentifier(node.name)}View`,
+      value: { name: node.name, reads: node.reads ?? [], dispatches: node.dispatches ?? [], props: node.props ?? [], events: node.events ?? [], renders: node.renders ?? [] },
+      sourceRef: sourceRef(node, { regionIds: [...(node.props ?? []).map((prop) => prop.id), ...(node.events ?? []).map((event) => event.id), ...(node.renders ?? []).map((render) => render.id)] })
+    });
+  }
+  for (const node of Object.values(document.nodes)) {
     if (node.kind === 'extern') {
       declarations.push({
         kind: 'externFunction',
@@ -141,6 +149,7 @@ export function renderTypeScriptAstWithSourceMap(ast, options = {}) {
       push('export type FrontierPatchOperation =', "  | { op: 'set'; path: string; value: unknown }", "  | { op: 'remove'; path: string }", "  | { op: 'insert'; path: string; value: unknown }", "  | { op: 'merge'; path: string; value: unknown };", '');
       push('export interface FrontierLatticeDescriptor {', '  readonly name: string;', '  readonly carrier: string;', '  readonly laws: readonly string[];', '  readonly frontierCrdt?: { readonly packageName?: string; readonly exportName: string; readonly lawChecker?: string };', '}', '');
       push('export interface FrontierCapabilityDescriptor {', '  readonly capability: string;', '  readonly category?: string;', '  readonly input?: string;', '  readonly returns?: string;', '  readonly effects: readonly string[];', '  readonly resources: readonly string[];', '  readonly adapters: readonly unknown[];', '  readonly unsupportedTargets: readonly unknown[];', '}', '');
+      push('export interface FrontierViewDescriptor {', '  readonly name: string;', '  readonly reads: readonly string[];', '  readonly dispatches: readonly string[];', '  readonly props: readonly unknown[];', '  readonly events: readonly unknown[];', '  readonly renders: readonly unknown[];', '}', '');
     }
     if (declaration.kind === 'typeAlias') {
       push(`export type ${declaration.name}${declaration.parameters} = ${declaration.type};`, '');
@@ -160,6 +169,9 @@ export function renderTypeScriptAstWithSourceMap(ast, options = {}) {
     }
     if (declaration.kind === 'capabilityDescriptor') {
       push(`export const ${declaration.name}: FrontierCapabilityDescriptor = ${JSON.stringify(declaration.value, null, 2)};`, '');
+    }
+    if (declaration.kind === 'viewDescriptor') {
+      push(`export const ${declaration.name}: FrontierViewDescriptor = ${JSON.stringify(declaration.value, null, 2)};`, '');
     }
     if (declaration.kind === 'externFunction') {
       push(`export declare function ${declaration.name}(input: ${declaration.inputType}): ${declaration.returnType};`, '');
