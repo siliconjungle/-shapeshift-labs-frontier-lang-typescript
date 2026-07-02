@@ -16,7 +16,26 @@ const doc = createDocument({ id: 'mod_todo', name: 'TodoApp', nodes: [
   ] }),
   effectNode({ id: 'effect_persist', name: 'PersistTodo', capability: 'storage.write', input: 'TodoInput', returns: 'Json', resources: ['TodoDb.todos'] }),
   stateNode({ id: 'state_todo', name: 'TodoDb', collections: [{ id: 'todos', name: 'todos', type: { kind: 'map', key: 'Text', value: 'Todo' } }] }),
-  viewNode({ id: 'view_todo_list', name: 'TodoList', reads: ['TodoDb.todos'], dispatches: ['action_add'], props: [{ id: 'view_prop_disabled', name: 'disabled', type: 'Boolean' }], events: [{ id: 'view_event_save', name: 'save', action: 'action_add' }], renders: [{ id: 'render_save_button', kind: 'element', tagName: 'Button', identityKey: 'save', text: 'Save', props: [{ name: 'disabled', expression: 'disabled' }], events: [{ name: 'press', action: 'save' }] }] }),
+  viewNode({ id: 'view_todo_list', name: 'TodoList', reads: ['TodoDb.todos'], dispatches: ['action_add'], props: [{ id: 'view_prop_disabled', name: 'disabled', type: 'Boolean' }], events: [{ id: 'view_event_save', name: 'save', action: 'action_add' }], renders: [{
+    id: 'render_stack',
+    kind: 'element',
+    tagName: 'Stack',
+    children: ['render_save_button', 'render_status_chip']
+  }, {
+    id: 'render_save_button',
+    kind: 'element',
+    tagName: 'Button',
+    identityKey: 'save',
+    text: 'Save',
+    props: [{ name: 'disabled', expression: 'disabled' }],
+    events: [{ name: 'press', action: 'save' }]
+  }, {
+    id: 'render_status_chip',
+    kind: 'component',
+    component: 'StatusChip',
+    identityKey: 'status',
+    props: [{ name: 'tone', value: 'ready' }]
+  }] }),
   migrationNode({ id: 'migration_todo_v1_v2', name: 'TodoV1ToV2', fromVersion: '1', toVersion: '2', changes: [{ id: 'change_add_title', kind: 'addField', target: 'Todo.title' }], invariants: ['title_present'] }),
   targetNode({ id: 'target_ts', name: 'typescript', target: { language: 'typescript', emitPath: 'todo.ts', moduleFormat: 'esm' } }),
   nativeSourceNode({ id: 'native_todo_ts', name: 'TodoTs', language: 'typescript', parser: 'typescript', sourcePath: 'todo.ts', sourceHash: 'sha256:todo', symbol: 'Todo', frontierNodeIds: ['ent_todo', 'action_add'], losses: [{ id: 'loss_decorator', kind: 'unsupportedSyntax', message: 'decorator retained in native source', severity: 'warning' }] }),
@@ -55,6 +74,9 @@ assert.ok(ast.declarations.some((declaration) => declaration.kind === 'externDes
 assert.ok(ast.declarations.some((declaration) => declaration.kind === 'stateDescriptor' && declaration.name === 'TodoDbStateDescriptor'));
 assert.ok(ast.declarations.some((declaration) => declaration.kind === 'viewDescriptor' && declaration.name === 'TodoListView'));
 assert.ok(ast.declarations.some((declaration) => declaration.kind === 'viewRenderFunction' && declaration.name === 'renderTodoListView'));
+const todoRenderDeclaration = ast.declarations.find((declaration) => declaration.kind === 'viewRenderFunction' && declaration.name === 'renderTodoListView');
+assert.deepEqual(todoRenderDeclaration.renders[0].children, ['render_save_button', 'render_status_chip']);
+assert.equal(todoRenderDeclaration.renders[2].component, 'StatusChip');
 assert.ok(ast.declarations.some((declaration) => declaration.kind === 'migrationDescriptor' && declaration.name === 'TodoV1ToV2Migration'));
 assert.ok(ast.declarations.some((declaration) => declaration.kind === 'targetDescriptor' && declaration.name === 'typescriptTarget'));
 assert.ok(ast.declarations.some((declaration) => declaration.kind === 'nativeSourceDescriptor' && declaration.name === 'TodoTsNativeSource'));
@@ -96,10 +118,17 @@ assert.match(out, /export const persistTodoExtern/);
 assert.match(out, /export const TodoDbStateDescriptor/);
 assert.match(out, /export const TodoListView/);
 assert.match(out, /export interface FrontierRenderNode/);
+assert.match(out, /readonly tagName\?: string/);
+assert.match(out, /readonly component\?: string/);
+assert.match(out, /readonly children: readonly string\[\]/);
 assert.match(out, /export function renderTodoListView\(props: \{ readonly disabled: boolean \}\): readonly FrontierRenderNode\[\]/);
+assert.match(out, /children: \["render_save_button","render_status_chip"\]/);
 assert.match(out, /tagName: "Button"/);
+assert.match(out, /component: "StatusChip"/);
 assert.match(out, /key: "save"/);
+assert.match(out, /key: "status"/);
 assert.match(out, /disabled: props\.disabled/);
+assert.match(out, /tone: "ready"/);
 assert.match(out, /press: \{ action: "save" \}/);
 assert.match(out, /export const TodoV1ToV2Migration/);
 assert.match(out, /export const typescriptTarget/);

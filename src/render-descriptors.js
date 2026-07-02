@@ -3,8 +3,10 @@ export function viewRenderNodeToAst(node) {
     id: node.id,
     kind: node.kind,
     tagName: node.tagName,
+    component: node.component,
     key: node.identityKey,
     text: node.text,
+    children: renderChildIds(node.children),
     props: (node.props ?? []).map((prop) => {
       const value = { name: prop.name };
       if (Object.prototype.hasOwnProperty.call(prop, 'value')) value.value = prop.value;
@@ -16,6 +18,12 @@ export function viewRenderNodeToAst(node) {
       action: event.action
     }))
   };
+}
+
+function renderChildIds(children = []) {
+  return children
+    .map((child) => typeof child === 'string' ? child : child?.id)
+    .filter((id) => typeof id === 'string' && id.length > 0);
 }
 
 export function viewPropsType(props = [], { safeIdentifier, toTypeScriptType }) {

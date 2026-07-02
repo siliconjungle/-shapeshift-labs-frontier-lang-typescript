@@ -6,7 +6,7 @@ export function renderRuntimeTypes(push) {
   push('export interface FrontierCapabilityDescriptor {', '  readonly capability: string;', '  readonly category?: string;', '  readonly input?: string;', '  readonly returns?: string;', '  readonly effects: readonly string[];', '  readonly resources: readonly string[];', '  readonly adapters: readonly unknown[];', '  readonly unsupportedTargets: readonly unknown[];', '}', '');
   push('export interface FrontierViewDescriptor {', '  readonly name: string;', '  readonly reads: readonly string[];', '  readonly dispatches: readonly string[];', '  readonly props: readonly unknown[];', '  readonly events: readonly unknown[];', '  readonly renders: readonly unknown[];', '}', '');
   push('export interface FrontierRenderEventBinding {', '  readonly action: string;', '}', '');
-  push('export interface FrontierRenderNode {', '  readonly id?: string;', '  readonly kind?: string;', '  readonly tagName: string;', '  readonly key?: string;', '  readonly text?: string;', '  readonly props: Readonly<Record<string, unknown>>;', '  readonly events: Readonly<Record<string, FrontierRenderEventBinding>>;', '}', '');
+  push('export interface FrontierRenderNode {', '  readonly id?: string;', '  readonly kind?: string;', '  readonly tagName?: string;', '  readonly component?: string;', '  readonly key?: string;', '  readonly text?: string;', '  readonly children: readonly string[];', '  readonly props: Readonly<Record<string, unknown>>;', '  readonly events: Readonly<Record<string, FrontierRenderEventBinding>>;', '}', '');
   push('export interface FrontierStateDescriptor {', '  readonly name: string;', '  readonly collections: readonly unknown[];', '}', '');
   push('export interface FrontierEffectDescriptor {', '  readonly name: string;', '  readonly capability: string;', '  readonly input?: string;', '  readonly returns?: string;', '  readonly resources: readonly string[];', '  readonly semantics?: unknown;', '}', '');
   push('export interface FrontierEffectContext {', '  readonly effect: string;', '  readonly resources: readonly string[];', '  readonly semantics?: unknown;', '}', '');
@@ -25,9 +25,11 @@ export function renderViewRenderFunctionDeclaration(declaration, push, { safeIde
     push('    {');
     if (render.id) push(`      id: ${JSON.stringify(render.id)},`);
     if (render.kind) push(`      kind: ${JSON.stringify(render.kind)},`);
-    push(`      tagName: ${JSON.stringify(render.tagName)},`);
+    if (render.tagName) push(`      tagName: ${JSON.stringify(render.tagName)},`);
+    if (render.component) push(`      component: ${JSON.stringify(render.component)},`);
     if (render.key) push(`      key: ${JSON.stringify(render.key)},`);
     if (render.text !== undefined) push(`      text: ${JSON.stringify(render.text)},`);
+    push(`      children: ${JSON.stringify(render.children ?? [])},`);
     push('      props: {');
     for (const prop of render.props ?? []) push(`        ${safeIdentifier(prop.name)}: ${renderPropValue(prop, { safeIdentifier })},`);
     push('      },');

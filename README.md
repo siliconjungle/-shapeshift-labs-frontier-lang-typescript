@@ -2,6 +2,16 @@
 
 TypeScript projection adapter for Frontier Lang semantic source documents.
 
+## Renderer-Neutral View Graphs
+
+Frontier `view` nodes lower to TypeScript descriptors without choosing a host
+renderer. Render nodes preserve stable `id`, optional `tagName`, optional
+`component`, identity `key`, text, props, events, and `children` render IDs.
+
+The generated `FrontierRenderNode` graph is evidence for semantic shape and
+merge review. It does not claim DOM, React, SwiftUI, browser, layout, focus, or
+event-runtime equivalence without a separate target/runtime proof.
+
 
 ## Related Packages
 

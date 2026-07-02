@@ -41,6 +41,26 @@ export interface TypeScriptDocumentSourceMapResult extends TypeScriptGeneratedSo
   readonly ast: TypeScriptAstModule;
 }
 export interface TypeScriptGeneratedDeclarationSpan extends SourceMapGeneratedSpan {}
+export interface TypeScriptRenderProp {
+  readonly name: string;
+  readonly value?: unknown;
+  readonly expression?: string;
+}
+export interface TypeScriptRenderEvent {
+  readonly name: string;
+  readonly action: string;
+}
+export interface TypeScriptRenderNode {
+  readonly id?: string;
+  readonly kind?: string;
+  readonly tagName?: string;
+  readonly component?: string;
+  readonly key?: string;
+  readonly text?: string;
+  readonly children: readonly string[];
+  readonly props: readonly TypeScriptRenderProp[];
+  readonly events: readonly TypeScriptRenderEvent[];
+}
 export type TypeScriptAstDeclaration =
   | { readonly kind: 'runtimeTypes' }
   | { readonly kind: 'typeAlias'; readonly name: string; readonly parameters: string; readonly type: string; readonly sourceRef?: TypeScriptSourceRef }
@@ -48,7 +68,7 @@ export type TypeScriptAstDeclaration =
   | { readonly kind: 'latticeDescriptor'; readonly name: string; readonly value: { readonly name: string; readonly carrier: string; readonly laws: readonly string[]; readonly frontierCrdt?: unknown }; readonly sourceRef?: TypeScriptSourceRef }
   | { readonly kind: 'capabilityDescriptor'; readonly name: string; readonly value: { readonly capability: string; readonly category?: string; readonly input?: string; readonly returns?: string; readonly effects: readonly string[]; readonly resources: readonly string[]; readonly adapters: readonly unknown[]; readonly unsupportedTargets: readonly unknown[] }; readonly sourceRef?: TypeScriptSourceRef }
   | { readonly kind: 'viewDescriptor'; readonly name: string; readonly value: { readonly name: string; readonly reads: readonly string[]; readonly dispatches: readonly string[]; readonly props: readonly unknown[]; readonly events: readonly unknown[]; readonly renders: readonly unknown[] }; readonly sourceRef?: TypeScriptSourceRef }
-  | { readonly kind: 'viewRenderFunction'; readonly name: string; readonly propsType: string; readonly renders: readonly unknown[]; readonly sourceRef?: TypeScriptSourceRef }
+  | { readonly kind: 'viewRenderFunction'; readonly name: string; readonly propsType: string; readonly renders: readonly TypeScriptRenderNode[]; readonly sourceRef?: TypeScriptSourceRef }
   | { readonly kind: 'stateDescriptor'; readonly name: string; readonly value: { readonly name: string; readonly collections: readonly unknown[] }; readonly sourceRef?: TypeScriptSourceRef }
   | { readonly kind: 'effectDescriptor'; readonly name: string; readonly value: { readonly name: string; readonly capability: string; readonly input?: string; readonly returns?: string; readonly resources: readonly string[]; readonly semantics?: unknown }; readonly sourceRef?: TypeScriptSourceRef }
   | { readonly kind: 'effectRunnerFunction'; readonly name: string; readonly inputType: string; readonly returnType: string; readonly value: { readonly name: string; readonly capability: string; readonly resources: readonly string[]; readonly semantics?: unknown }; readonly sourceRef?: TypeScriptSourceRef }
