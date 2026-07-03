@@ -40,6 +40,22 @@ function renderActionBodyRecords(body, { safeIdentifier, returnType, locals }) {
       statements.push('}');
       continue;
     }
+    if (record.kind === 'match') {
+      statements.push(`switch (${actionValueExpression(record.value, { safeIdentifier, locals, valueType: actionRecordValueType(record), comparisonType: actionRecordComparisonType(record), callType: actionRecordCallType(record) })}) {`);
+      for (const branch of record.cases ?? []) {
+        statements.push(`  case ${actionValueExpression(branch.value, { safeIdentifier, locals })}: {`);
+        for (const statement of renderActionBodyRecords(branch.body ?? [], { safeIdentifier, returnType, locals: new Map(locals) })) statements.push(`    ${statement}`);
+        statements.push('    break;');
+        statements.push('  }');
+      }
+      if (Array.isArray(record.defaultBody) && record.defaultBody.length) {
+        statements.push('  default: {');
+        for (const statement of renderActionBodyRecords(record.defaultBody, { safeIdentifier, returnType, locals: new Map(locals) })) statements.push(`    ${statement}`);
+        statements.push('  }');
+      }
+      statements.push('}');
+      continue;
+    }
     if (record.kind === 'return') {
       statements.push(`return ${actionValueExpression(record.value, { safeIdentifier, locals, valueType: actionRecordValueType(record), comparisonType: actionRecordComparisonType(record), callType: actionRecordCallType(record) })} as ${returnType};`);
     }

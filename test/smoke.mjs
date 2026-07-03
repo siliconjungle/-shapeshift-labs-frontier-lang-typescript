@@ -237,3 +237,14 @@ const ifElseDoc = createDocument({ id: 'if_else', name: 'IfElse', nodes: [
   ] })
 ] });
 assert.match(emitTypeScript(ifElseDoc), /if \(input\.enabled\) \{\n    patches\.push\(\{ op: "set", path: "\/status", value: "ready" \}\);\n  \} else \{\n    patches\.push\(\{ op: "set", path: "\/status", value: "blocked" \}\);\n  \}/);
+
+const matchDoc = createDocument({ id: 'match', name: 'Match', nodes: [
+  typeNode({ id: 'match_input', name: 'MatchInput', fields: [{ id: 'match_status', name: 'status', type: 'Text' }] }),
+  actionNode({ id: 'action_match_status', name: 'setStatusByMatch', input: 'MatchInput', returns: 'Patch', body: [
+    { kind: 'match', id: 'match_status', name: 'status', value: { expression: 'input.status', expressionAst: ref('input.status', 'input', ['status']) }, cases: [
+      { id: 'case_ready', name: 'ready', value: { value: 'ready' }, body: [{ kind: 'patch', op: 'set', id: 'patch_ready', name: 'ready', path: '/status', value: { value: 'ready' } }] },
+      { id: 'case_blocked', name: 'blocked', value: { value: 'blocked' }, body: [{ kind: 'patch', op: 'set', id: 'patch_blocked', name: 'blocked', path: '/status', value: { value: 'blocked' } }] }
+    ], defaultBody: [{ kind: 'patch', op: 'set', id: 'patch_pending', name: 'pending', path: '/status', value: { value: 'pending' } }] }
+  ] })
+] });
+assert.match(emitTypeScript(matchDoc), /switch \(input\.status\) \{\n    case "ready": \{\n      patches\.push\(\{ op: "set", path: "\/status", value: "ready" \}\);\n      break;\n    \}\n    case "blocked": \{\n      patches\.push\(\{ op: "set", path: "\/status", value: "blocked" \}\);\n      break;\n    \}\n    default: \{\n      patches\.push\(\{ op: "set", path: "\/status", value: "pending" \}\);\n    \}\n  \}/);
