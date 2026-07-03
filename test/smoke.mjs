@@ -207,3 +207,21 @@ const unsupportedCallDoc = createDocument({ id: 'bad_call', name: 'BadCall', nod
   ] })
 ] });
 assert.throws(() => emitTypeScript(unsupportedCallDoc), /Unsupported Frontier action call type/);
+
+const directReturnDoc = createDocument({ id: 'direct_return', name: 'DirectReturn', nodes: [
+  typeNode({ id: 'direct_input', name: 'DirectInput', fields: [
+    { id: 'direct_title', name: 'title', type: 'Text' },
+    { id: 'direct_count', name: 'count', type: 'Number' }
+  ] }),
+  actionNode({ id: 'action_next_count', name: 'nextCount', input: 'DirectInput', returns: 'Number', body: [
+    { kind: 'return', id: 'return_next_count', valueType: 'Number', value: { expression: 'input.count + 1', expressionAst: { kind: 'binary', op: '+', left: ref('input.count', 'input', ['count']), right: literal(1) }, valueType: 'Number' } }
+  ] }),
+  actionNode({ id: 'action_normalized_title', name: 'normalizedTitle', input: 'DirectInput', returns: 'Text', body: [
+    { kind: 'return', id: 'return_normalized_title', callType: 'Text', value: { expression: 'normalizeTitle(input.title)', expressionAst: call('normalizeTitle', [ref('input.title', 'input', ['title'])], 'Text'), callType: 'Text' } }
+  ] })
+] });
+const directReturnOut = emitTypeScript(directReturnDoc);
+assert.match(directReturnOut, /export function nextCount/);
+assert.match(directReturnOut, /return \(input\.count \+ 1\) as number;/);
+assert.match(directReturnOut, /export function normalizedTitle/);
+assert.match(directReturnOut, /return normalizeTitle\(input\.title\) as string;/);
