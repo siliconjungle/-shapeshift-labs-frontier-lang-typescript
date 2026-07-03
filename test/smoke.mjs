@@ -4,6 +4,7 @@ import { emitTypeScript, emitTypeScriptWithSourceMap, renderTypeScriptAst, rende
 const doc = createDocument({ id: 'mod_todo', name: 'TodoApp', nodes: [
   typeNode({ id: 'type_input', name: 'TodoInput', fields: [
     { id: 'input_title', name: 'title', type: 'Text' },
+    { id: 'input_enabled', name: 'enabled', type: 'Boolean' },
     { id: 'input_tags', name: 'tags', type: { kind: 'set', item: 'Text' }, optional: true }
   ] }),
   latticeNode({ id: 'lat_tags', name: 'TagSet', carrier: 'Set<Text>', laws: ['semilattice', 'commutative'], frontierCrdt: { packageName: '@shapeshift-labs/frontier-crdt', exportName: 'createCrdtOrSetLattice' } }),
@@ -42,6 +43,10 @@ const doc = createDocument({ id: 'mod_todo', name: 'TodoApp', nodes: [
   externNode({ id: 'extern_persist', name: 'persistTodo', language: 'typescript', symbol: 'persistTodo', signature: { input: 'TodoInput', returns: 'Patch' } }),
   actionNode({ id: 'action_add', name: 'addTodo', input: 'TodoInput', returns: 'Patch', body: [
     { kind: 'patch', op: 'set', id: 'patch_title', name: 'title', path: '/todos/title', value: { expression: 'input.title' } },
+    { kind: 'if', id: 'guard_enabled', name: 'enabled', condition: { expression: 'input.enabled' }, body: [
+      { kind: 'patch', op: 'set', id: 'patch_status', name: 'status', path: '/todos/status', value: { value: 'ready' } },
+      { kind: 'callEffect', id: 'call_guarded_storage', name: 'guardedPersist', capability: 'storage.write', input: { expression: 'input' } }
+    ] },
     { kind: 'patch', op: 'insert', id: 'patch_insert', name: 'item', path: '/todos', value: { expression: 'input' } },
     { kind: 'patch', op: 'remove', id: 'patch_remove', name: 'oldTitle', path: '/todos/oldTitle' },
     { kind: 'callEffect', id: 'call_storage', name: 'persist', capability: 'storage.write', input: { expression: 'input' } },
@@ -111,6 +116,7 @@ assert.deepEqual(todoMapping.lossIds, ['loss_estimated_span']);
 assert.deepEqual(todoMapping.evidenceIds, ['evidence_projection']);
 assert.deepEqual(todoMapping.metadata.regionIds, ['field_title', 'field_tags']);
 assert.match(out, /export interface TodoInput/);
+assert.match(out, /enabled: boolean/);
 assert.match(out, /tags\\?: ReadonlySet<string>/);
 assert.match(out, /export const TagSetLattice/);
 assert.match(out, /export const HttpRequestCapability/);
@@ -150,6 +156,7 @@ assert.match(out, /export declare function persistTodo\(input: TodoInput\): Fron
 assert.match(out, /export function addTodo/);
 assert.match(out, /const patches: FrontierPatchOperation\[\] = \[\];/);
 assert.match(out, /patches\.push\(\{ op: "set", path: "\/todos\/title", value: input\.title \}\);/);
+assert.match(out, /if \(input\.enabled\) \{\n    patches\.push\(\{ op: "set", path: "\/todos\/status", value: "ready" \}\);\n    const invoke_call_guarded_storage = env\["storage\.write"\] as \(\(input: unknown\) => unknown\) \| undefined;\n    void invoke_call_guarded_storage\?\.\(input\);\n  \}/);
 assert.match(out, /patches\.push\(\{ op: "insert", path: "\/todos", value: input \}\);/);
 assert.match(out, /patches\.push\(\{ op: 'remove', path: "\/todos\/oldTitle" \}\);/);
 assert.match(out, /const invoke_call_storage = env\["storage\.write"\] as \(\(input: unknown\) => unknown\) \| undefined;/);
