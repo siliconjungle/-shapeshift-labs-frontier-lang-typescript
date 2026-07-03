@@ -8,3 +8,4 @@ await copyFile("src/index.d.ts", "dist/index.d.ts");
 await copyFile("src/render-descriptors.js", "dist/render-descriptors.js");
 await copyFile("src/render-printers.js", "dist/render-printers.js");
 await copyFile("src/semantic-descriptors.js", "dist/semantic-descriptors.js");
+await copyFile("src/type-parameters.js", "dist/type-parameters.js");

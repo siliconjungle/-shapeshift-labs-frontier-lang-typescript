@@ -1,5 +1,6 @@
 import { renderActionBodyStatements } from './action-body.js';
 import { renderSemanticDescriptorDeclaration, semanticDescriptorDeclarations } from './semantic-descriptors.js';
+import { typeParametersToTypeScript } from './type-parameters.js';
 import { viewPropsType, viewRenderNodeToAst } from './render-descriptors.js';
 import { renderRuntimeTypes, renderViewRenderFunctionDeclaration } from './render-printers.js';
 
@@ -275,7 +276,7 @@ export function emitTypeScriptWithSourceMap(document, options = {}) {
 }
 
 function typeNodeToAst(node) {
-  const params = node.parameters?.length ? `<${node.parameters.map(safeIdentifier).join(', ')}>` : '';
+  const params = typeParametersToTypeScript(node, { safeIdentifier, toTypeScriptType });
   if (node.type) {
     return { kind: 'typeAlias', name: safeIdentifier(node.name), parameters: params, type: toTypeScriptType(node.type), sourceRef: sourceRef(node) };
   }

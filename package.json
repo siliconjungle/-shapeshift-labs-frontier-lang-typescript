@@ -1,6 +1,6 @@
 {
   "name": "@shapeshift-labs/frontier-lang-typescript",
-  "version": "0.3.27",
+  "version": "0.3.28",
   "description": "TypeScript projection adapter for Frontier Lang semantic source documents.",
   "type": "module",
   "main": "./dist/index.js",
@@ -22,7 +22,7 @@
   ],
   "scripts": {
     "build": "node scripts/build.mjs",
-    "test": "npm run build && node test/smoke.mjs && node test/type-variant-payload-smoke.mjs",
+    "test": "npm run build && node test/smoke.mjs && node test/type-variant-payload-smoke.mjs && node test/type-parameter-constraints-smoke.mjs",
     "typecheck": "node ./node_modules/typescript/bin/tsc --noEmit -p test/tsconfig.json",
     "fuzz": "npm run build && node fuzz/smoke.mjs",
     "bench": "npm run build && node bench/smoke.mjs",
@@ -54,7 +54,7 @@
     "access": "public"
   },
   "dependencies": {
-    "@shapeshift-labs/frontier-lang-kernel": "0.3.13"
+    "@shapeshift-labs/frontier-lang-kernel": "0.3.14"
   },
   "devDependencies": {
     "typescript": "^5.9.3"
