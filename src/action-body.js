@@ -12,12 +12,12 @@ function renderActionBodyRecords(body, { safeIdentifier, returnType, locals }) {
   for (const record of body) {
     if (record.kind === 'let') {
       const local = safeIdentifier(record.name ?? record.id ?? 'binding');
-      statements.push(`const ${local} = ${actionValueExpression(record.value, { safeIdentifier, locals })};`);
+      statements.push(`const ${local} = ${actionValueExpression(record.value, { safeIdentifier, locals, valueType: actionRecordValueType(record) })};`);
       locals.set(record.name, local);
       continue;
     }
     if (record.kind === 'patch' && (record.op === 'set' || record.op === 'insert' || record.op === 'merge')) {
-      statements.push(`patches.push({ op: ${JSON.stringify(record.op)}, path: ${JSON.stringify(record.path ?? '')}, value: ${actionValueExpression(record.value, { safeIdentifier, locals })} });`);
+      statements.push(`patches.push({ op: ${JSON.stringify(record.op)}, path: ${JSON.stringify(record.path ?? '')}, value: ${actionValueExpression(record.value, { safeIdentifier, locals, valueType: actionRecordValueType(record) })} });`);
       continue;
     }
     if (record.kind === 'patch' && record.op === 'remove') {
@@ -85,6 +85,10 @@ function structuredActionExpression(node, context = {}) {
     return `${parenthesizeExpression(structuredActionExpression(node.left, { ...context, expressionContext: 'condition' }), node.left)} ${node.op} ${parenthesizeExpression(structuredActionExpression(node.right, { ...context, expressionContext: 'condition' }), node.right)}`;
   }
   if (node.kind === 'binary') {
+    if (isNumericOperator(node.op)) {
+      if (!isNumericType(context.valueType)) throw new Error(`Unsupported Frontier action expression operator: ${node.op}`);
+      return `(${structuredActionExpression(node.left, { ...context, expressionContext: 'value' })} ${node.op} ${structuredActionExpression(node.right, { ...context, expressionContext: 'value' })})`;
+    }
     const op = targetComparisonOperator(node.op);
     if (isOrderedComparison(node.op) && !isNumericComparison(node)) throw new Error(`Unsupported Frontier action expression operator: ${node.op}`);
     return `(${structuredActionExpression(node.left, { ...context, expressionContext: 'value' })} ${op} ${structuredActionExpression(node.right, { ...context, expressionContext: 'value' })})`;
@@ -119,6 +123,18 @@ function targetComparisonOperator(op) {
   if (op === '!=') return '!==';
   if (op === '>' || op === '>=' || op === '<' || op === '<=') return op;
   throw new Error(`Unsupported Frontier action expression operator: ${op}`);
+}
+
+function actionRecordValueType(record) {
+  return record.valueType ?? record.type ?? record.value?.valueType ?? record.value?.type;
+}
+
+function isNumericOperator(op) {
+  return op === '+' || op === '-' || op === '*' || op === '/' || op === '%';
+}
+
+function isNumericType(value) {
+  return ['number', 'numeric', 'int', 'integer', 'float', 'double', 'decimal'].includes(String(value ?? '').trim().toLowerCase());
 }
 
 function isOrderedComparison(op) {

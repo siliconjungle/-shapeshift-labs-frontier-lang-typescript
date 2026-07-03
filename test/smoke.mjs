@@ -6,6 +6,7 @@ const literal = (value) => ({ kind: 'literal', value });
 const doc = createDocument({ id: 'mod_todo', name: 'TodoApp', nodes: [
   typeNode({ id: 'type_input', name: 'TodoInput', fields: [
     { id: 'input_title', name: 'title', type: 'Text' },
+    { id: 'input_count', name: 'count', type: 'Number' },
     { id: 'input_enabled', name: 'enabled', type: 'Boolean' },
     { id: 'input_tags', name: 'tags', type: { kind: 'set', item: 'Text' }, optional: true }
   ] }),
@@ -46,7 +47,9 @@ const doc = createDocument({ id: 'mod_todo', name: 'TodoApp', nodes: [
   actionNode({ id: 'action_add', name: 'addTodo', input: 'TodoInput', returns: 'Patch', body: [
     { kind: 'let', id: 'bind_normalized_title', name: 'normalizedTitle', value: { expression: 'input.title', expressionAst: ref('input.title', 'input', ['title']) } },
     { kind: 'let', id: 'bind_can_write', name: 'canWrite', value: { expression: 'input.enabled == true', expressionAst: { kind: 'binary', op: '==', left: ref('input.enabled', 'input', ['enabled']), right: literal(true) } } },
+    { kind: 'let', id: 'bind_next_count', name: 'nextCount', valueType: 'Number', value: { expression: 'input.count + 1', expressionAst: { kind: 'binary', op: '+', left: ref('input.count', 'input', ['count']), right: literal(1) }, valueType: 'Number' } },
     { kind: 'patch', op: 'set', id: 'patch_title', name: 'title', path: '/todos/title', value: { expression: 'normalizedTitle', expressionAst: ref('normalizedTitle', 'local', ['normalizedTitle']) } },
+    { kind: 'patch', op: 'set', id: 'patch_count', name: 'count', path: '/todos/count', valueType: 'Number', value: { expression: 'nextCount', expressionAst: ref('nextCount', 'local', ['nextCount']), valueType: 'Number' } },
     { kind: 'if', id: 'guard_enabled', name: 'enabled', condition: { expression: 'canWrite && input.enabled', expressionAst: { kind: 'logical', op: '&&', left: ref('canWrite', 'local', ['canWrite']), right: ref('input.enabled', 'input', ['enabled']) } }, body: [
       { kind: 'let', id: 'bind_status_text', name: 'statusText', value: { value: 'ready' } },
       { kind: 'patch', op: 'set', id: 'patch_status', name: 'status', path: '/todos/status', value: { expression: 'statusText', expressionAst: ref('statusText', 'local', ['statusText']) } },
@@ -121,6 +124,7 @@ assert.deepEqual(todoMapping.lossIds, ['loss_estimated_span']);
 assert.deepEqual(todoMapping.evidenceIds, ['evidence_projection']);
 assert.deepEqual(todoMapping.metadata.regionIds, ['field_title', 'field_tags']);
 assert.match(out, /export interface TodoInput/);
+assert.match(out, /count: number/);
 assert.match(out, /enabled: boolean/);
 assert.match(out, /tags\\?: ReadonlySet<string>/);
 assert.match(out, /export const TagSetLattice/);
@@ -162,7 +166,9 @@ assert.match(out, /export function addTodo/);
 assert.match(out, /const patches: FrontierPatchOperation\[\] = \[\];/);
 assert.match(out, /const normalizedTitle = input\.title;/);
 assert.match(out, /const canWrite = \(input\.enabled === true\);/);
+assert.match(out, /const nextCount = \(input\.count \+ 1\);/);
 assert.match(out, /patches\.push\(\{ op: "set", path: "\/todos\/title", value: normalizedTitle \}\);/);
+assert.match(out, /patches\.push\(\{ op: "set", path: "\/todos\/count", value: nextCount \}\);/);
 assert.match(out, /if \(canWrite && input\.enabled\) \{\n    const statusText = "ready";\n    patches\.push\(\{ op: "set", path: "\/todos\/status", value: statusText \}\);\n    const invoke_call_guarded_storage = env\["storage\.write"\] as \(\(input: unknown\) => unknown\) \| undefined;\n    void invoke_call_guarded_storage\?\.\(normalizedTitle\);\n  \}/);
 assert.match(out, /patches\.push\(\{ op: "insert", path: "\/todos", value: input \}\);/);
 assert.match(out, /patches\.push\(\{ op: 'remove', path: "\/todos\/oldTitle" \}\);/);
