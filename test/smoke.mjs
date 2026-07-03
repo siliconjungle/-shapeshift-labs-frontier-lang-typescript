@@ -50,8 +50,14 @@ const doc = createDocument({ id: 'mod_todo', name: 'TodoApp', nodes: [
     { kind: 'let', id: 'bind_can_write', name: 'canWrite', value: { expression: 'input.enabled == true', expressionAst: { kind: 'binary', op: '==', left: ref('input.enabled', 'input', ['enabled']), right: literal(true) } } },
     { kind: 'let', id: 'bind_next_count', name: 'nextCount', valueType: 'Number', value: { expression: 'input.count + 1', expressionAst: { kind: 'binary', op: '+', left: ref('input.count', 'input', ['count']), right: literal(1) }, valueType: 'Number' } },
     { kind: 'let', id: 'bind_has_count', name: 'hasCount', comparisonType: 'Number', value: { expression: 'input.count > 0', expressionAst: { kind: 'binary', op: '>', left: ref('input.count', 'input', ['count']), right: literal(0) }, comparisonType: 'Number' } },
+    { kind: 'let', id: 'bind_payload', name: 'payload', value: { expression: '{ title: input.title, tags: [input.title, "new"] }', expressionAst: { kind: 'object', entries: [
+      { key: 'title', value: ref('input.title', 'input', ['title']) },
+      { key: 'tags', value: { kind: 'array', elements: [ref('input.title', 'input', ['title']), literal('new')] } }
+    ] } } },
     { kind: 'patch', op: 'set', id: 'patch_title', name: 'title', path: '/todos/title', value: { expression: 'normalizedTitle', expressionAst: ref('normalizedTitle', 'local', ['normalizedTitle']) } },
     { kind: 'patch', op: 'set', id: 'patch_count', name: 'count', path: '/todos/count', valueType: 'Number', value: { expression: 'nextCount', expressionAst: ref('nextCount', 'local', ['nextCount']), valueType: 'Number' } },
+    { kind: 'patch', op: 'set', id: 'patch_payload', name: 'payload', path: '/todos/payload', value: { expression: 'payload', expressionAst: ref('payload', 'local', ['payload']) } },
+    { kind: 'patch', op: 'set', id: 'patch_inline_payload', name: 'inlinePayload', path: '/todos/inlinePayload', value: { expression: '[input.title, "new"]', expressionAst: { kind: 'array', elements: [ref('input.title', 'input', ['title']), literal('new')] } } },
     { kind: 'if', id: 'guard_counted', name: 'counted', comparisonType: 'Number', condition: { expression: 'input.count > 0', expressionAst: { kind: 'binary', op: '>', left: ref('input.count', 'input', ['count']), right: literal(0) }, comparisonType: 'Number' }, body: [
       { kind: 'patch', op: 'set', id: 'patch_counted', name: 'counted', path: '/todos/counted', value: { expression: 'hasCount', expressionAst: ref('hasCount', 'local', ['hasCount']) } }
     ] },
@@ -173,8 +179,11 @@ assert.match(out, /const normalizedTitle = normalizeTitle\(input\.title\);/);
 assert.match(out, /const canWrite = \(input\.enabled === true\);/);
 assert.match(out, /const nextCount = \(input\.count \+ 1\);/);
 assert.match(out, /const hasCount = \(input\.count > 0\);/);
+assert.match(out, /const payload = \{ "title": input\.title, "tags": \[input\.title, "new"\] \};/);
 assert.match(out, /patches\.push\(\{ op: "set", path: "\/todos\/title", value: normalizedTitle \}\);/);
 assert.match(out, /patches\.push\(\{ op: "set", path: "\/todos\/count", value: nextCount \}\);/);
+assert.match(out, /patches\.push\(\{ op: "set", path: "\/todos\/payload", value: payload \}\);/);
+assert.match(out, /patches\.push\(\{ op: "set", path: "\/todos\/inlinePayload", value: \[input\.title, "new"\] \}\);/);
 assert.match(out, /if \(\(input\.count > 0\)\) \{\n    patches\.push\(\{ op: "set", path: "\/todos\/counted", value: hasCount \}\);\n  \}/);
 assert.match(out, /if \(canWrite && input\.enabled\) \{\n    const statusText = "ready";\n    patches\.push\(\{ op: "set", path: "\/todos\/status", value: statusText \}\);\n    const invoke_call_guarded_storage = env\["storage\.write"\] as \(\(input: unknown\) => unknown\) \| undefined;\n    void invoke_call_guarded_storage\?\.\(normalizedTitle\);\n  \}/);
 assert.match(out, /patches\.push\(\{ op: "insert", path: "\/todos", value: input \}\);/);

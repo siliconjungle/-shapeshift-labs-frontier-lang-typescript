@@ -118,6 +118,8 @@ function structuredActionExpression(node, context = {}) {
   if (!node || typeof node !== 'object') throw new Error('Unsupported Frontier action expression');
   if (node.kind === 'literal') return structuredLiteralExpression(node.value, context);
   if (node.kind === 'ref') return structuredRefExpression(node, context);
+  if (node.kind === 'array') return structuredArrayExpression(node, context);
+  if (node.kind === 'object') return structuredObjectExpression(node, context);
   if (node.kind === 'unary' && node.op === '!') return `!${parenthesizeExpression(structuredActionExpression(node.argument, { ...context, expressionContext: 'condition' }), node.argument)}`;
   if (node.kind === 'call') return structuredCallExpression(node, context);
   if (node.kind === 'logical' && (node.op === '&&' || node.op === '||')) {
@@ -134,6 +136,18 @@ function structuredActionExpression(node, context = {}) {
     return `(${structuredActionExpression(node.left, valueContext)} ${op} ${structuredActionExpression(node.right, valueContext)})`;
   }
   throw new Error(`Unsupported Frontier action expression: ${node.kind ?? 'unknown'}`);
+}
+
+function structuredArrayExpression(node, context = {}) {
+  if (context.expressionContext === 'condition') throw new Error('Unsupported Frontier action condition expression');
+  const elements = (node.elements ?? []).map((element) => structuredActionExpression(element, { ...context, expressionContext: 'value' }));
+  return `[${elements.join(', ')}]`;
+}
+
+function structuredObjectExpression(node, context = {}) {
+  if (context.expressionContext === 'condition') throw new Error('Unsupported Frontier action condition expression');
+  const entries = (node.entries ?? []).map((entry) => `${JSON.stringify(String(entry.key ?? ''))}: ${structuredActionExpression(entry.value, { ...context, expressionContext: 'value' })}`);
+  return entries.length ? `{ ${entries.join(', ')} }` : '{}';
 }
 
 function structuredLiteralExpression(value, { expressionContext } = {}) {
@@ -212,6 +226,8 @@ function hasCallExpression(node) {
   if (node.kind === 'call') return true;
   if (node.kind === 'binary' || node.kind === 'logical') return hasCallExpression(node.left) || hasCallExpression(node.right);
   if (node.kind === 'unary') return hasCallExpression(node.argument);
+  if (node.kind === 'array') return (node.elements ?? []).some(hasCallExpression);
+  if (node.kind === 'object') return (node.entries ?? []).some((entry) => hasCallExpression(entry.value));
   return false;
 }
 
