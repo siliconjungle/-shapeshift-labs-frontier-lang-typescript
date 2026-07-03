@@ -258,3 +258,13 @@ const forInDoc = createDocument({ id: 'for_in', name: 'ForIn', nodes: [
   ] })
 ] });
 assert.match(emitTypeScript(forInDoc), /for \(const item of input\.items\) \{\n    patches\.push\(\{ op: "set", path: "\/lastName", value: item\.name \}\);\n  \}/);
+
+const repeatDoc = createDocument({ id: 'repeat', name: 'Repeat', nodes: [
+  typeNode({ id: 'repeat_input', name: 'RepeatInput', fields: [{ id: 'repeat_count', name: 'count', type: 'Number' }] }),
+  actionNode({ id: 'action_repeat_index', name: 'recordLastIndex', input: 'RepeatInput', returns: 'Patch', body: [
+    { kind: 'repeat', id: 'repeat_items', indexName: 'index', count: { expression: 'input.count', expressionAst: ref('input.count', 'input', ['count']) }, body: [
+      { kind: 'patch', op: 'set', id: 'patch_last_index', name: 'lastIndex', path: '/lastIndex', value: { expression: 'index', expressionAst: ref('index', 'local', ['index']) } }
+    ] }
+  ] })
+] });
+assert.match(emitTypeScript(repeatDoc), /for \(let index = 0; index < Number\(input\.count\); index\+\+\) \{\n    patches\.push\(\{ op: "set", path: "\/lastIndex", value: index \}\);\n  \}/);

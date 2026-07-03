@@ -65,6 +65,15 @@ function renderActionBodyRecords(body, { safeIdentifier, returnType, locals }) {
       statements.push('}');
       continue;
     }
+    if (record.kind === 'repeat') {
+      const index = safeIdentifier(record.indexName ?? record.name ?? record.id ?? 'index');
+      const loopLocals = new Map(locals);
+      loopLocals.set(record.indexName ?? record.name, index);
+      statements.push(`for (let ${index} = 0; ${index} < Number(${actionValueExpression(record.count, { safeIdentifier, locals })}); ${index}++) {`);
+      for (const statement of renderActionBodyRecords(record.body ?? [], { safeIdentifier, returnType, locals: loopLocals })) statements.push(`  ${statement}`);
+      statements.push('}');
+      continue;
+    }
     if (record.kind === 'return') {
       statements.push(`return ${actionValueExpression(record.value, { safeIdentifier, locals, valueType: actionRecordValueType(record), comparisonType: actionRecordComparisonType(record), callType: actionRecordCallType(record) })} as ${returnType};`);
     }
