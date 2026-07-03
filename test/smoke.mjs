@@ -225,3 +225,15 @@ assert.match(directReturnOut, /export function nextCount/);
 assert.match(directReturnOut, /return \(input\.count \+ 1\) as number;/);
 assert.match(directReturnOut, /export function normalizedTitle/);
 assert.match(directReturnOut, /return normalizeTitle\(input\.title\) as string;/);
+
+const ifElseDoc = createDocument({ id: 'if_else', name: 'IfElse', nodes: [
+  typeNode({ id: 'else_input', name: 'ElseInput', fields: [{ id: 'else_enabled', name: 'enabled', type: 'Boolean' }] }),
+  actionNode({ id: 'action_status', name: 'setStatus', input: 'ElseInput', returns: 'Patch', body: [
+    { kind: 'if', id: 'guard_enabled', condition: { expression: 'input.enabled', expressionAst: ref('input.enabled', 'input', ['enabled']) }, body: [
+      { kind: 'patch', op: 'set', id: 'patch_ready', name: 'ready', path: '/status', value: { value: 'ready' } }
+    ], elseId: 'else_disabled', elseBody: [
+      { kind: 'patch', op: 'set', id: 'patch_blocked', name: 'blocked', path: '/status', value: { value: 'blocked' } }
+    ] }
+  ] })
+] });
+assert.match(emitTypeScript(ifElseDoc), /if \(input\.enabled\) \{\n    patches\.push\(\{ op: "set", path: "\/status", value: "ready" \}\);\n  \} else \{\n    patches\.push\(\{ op: "set", path: "\/status", value: "blocked" \}\);\n  \}/);
