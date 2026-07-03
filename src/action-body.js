@@ -12,12 +12,12 @@ function renderActionBodyRecords(body, { safeIdentifier, returnType, locals }) {
   for (const record of body) {
     if (record.kind === 'let') {
       const local = safeIdentifier(record.name ?? record.id ?? 'binding');
-      statements.push(`const ${local} = ${actionValueExpression(record.value, { safeIdentifier, locals, valueType: actionRecordValueType(record), comparisonType: actionRecordComparisonType(record) })};`);
+      statements.push(`const ${local} = ${actionValueExpression(record.value, { safeIdentifier, locals, valueType: actionRecordValueType(record), comparisonType: actionRecordComparisonType(record), callType: actionRecordCallType(record) })};`);
       locals.set(record.name, local);
       continue;
     }
     if (record.kind === 'patch' && (record.op === 'set' || record.op === 'insert' || record.op === 'merge')) {
-      statements.push(`patches.push({ op: ${JSON.stringify(record.op)}, path: ${JSON.stringify(record.path ?? '')}, value: ${actionValueExpression(record.value, { safeIdentifier, locals, valueType: actionRecordValueType(record), comparisonType: actionRecordComparisonType(record) })} });`);
+      statements.push(`patches.push({ op: ${JSON.stringify(record.op)}, path: ${JSON.stringify(record.path ?? '')}, value: ${actionValueExpression(record.value, { safeIdentifier, locals, valueType: actionRecordValueType(record), comparisonType: actionRecordComparisonType(record), callType: actionRecordCallType(record) })} });`);
       continue;
     }
     if (record.kind === 'patch' && record.op === 'remove') {
@@ -31,7 +31,7 @@ function renderActionBodyRecords(body, { safeIdentifier, returnType, locals }) {
       continue;
     }
     if (record.kind === 'if') {
-      statements.push(`if (${actionConditionExpression(record.condition, { safeIdentifier, locals, comparisonType: actionRecordComparisonType(record) })}) {`);
+      statements.push(`if (${actionConditionExpression(record.condition, { safeIdentifier, locals, comparisonType: actionRecordComparisonType(record), callType: actionRecordCallType(record) })}) {`);
       for (const statement of renderActionBodyRecords(record.body ?? [], { safeIdentifier, returnType, locals: new Map(locals) })) statements.push(`  ${statement}`);
       statements.push('}');
       continue;
@@ -81,6 +81,7 @@ function structuredActionExpression(node, context = {}) {
   if (node.kind === 'literal') return structuredLiteralExpression(node.value, context);
   if (node.kind === 'ref') return structuredRefExpression(node, context);
   if (node.kind === 'unary' && node.op === '!') return `!${parenthesizeExpression(structuredActionExpression(node.argument, { ...context, expressionContext: 'condition' }), node.argument)}`;
+  if (node.kind === 'call') return structuredCallExpression(node, context);
   if (node.kind === 'logical' && (node.op === '&&' || node.op === '||')) {
     return `${parenthesizeExpression(structuredActionExpression(node.left, { ...context, expressionContext: 'condition' }), node.left)} ${node.op} ${parenthesizeExpression(structuredActionExpression(node.right, { ...context, expressionContext: 'condition' }), node.right)}`;
   }
@@ -102,6 +103,16 @@ function structuredLiteralExpression(value, { expressionContext } = {}) {
   if (typeof value === 'number' && !Number.isFinite(value)) throw new Error('Unsupported Frontier action expression literal');
   if (value === null || ['string', 'number', 'boolean'].includes(typeof value)) return JSON.stringify(value);
   throw new Error('Unsupported Frontier action expression literal');
+}
+
+function structuredCallExpression(node, context = {}) {
+  const callType = node.callType ?? context.callType;
+  if (!isSupportedCallType(callType)) throw new Error('Unsupported Frontier action call type');
+  const callee = String(node.callee ?? '').trim();
+  if (!/^[A-Za-z_$][\w$-]*$/.test(callee) || isBlockedCallCallee(callee)) throw new Error(`Unsupported Frontier action call callee: ${callee || 'unknown'}`);
+  const args = Array.isArray(node.args) ? node.args : [];
+  if (args.some(hasCallExpression)) throw new Error('Unsupported Frontier action call argument');
+  return `${context.safeIdentifier(callee)}(${args.map((arg) => structuredActionExpression(arg, { ...context, expressionContext: 'value' })).join(', ')})`;
 }
 
 function structuredRefExpression(node, { locals } = {}) {
@@ -134,6 +145,10 @@ function actionRecordComparisonType(record) {
   return record.comparisonType ?? record.compareType ?? record.compare ?? record.value?.comparisonType ?? record.value?.compareType ?? record.condition?.comparisonType ?? record.condition?.compareType;
 }
 
+function actionRecordCallType(record) {
+  return record.callType ?? record.call ?? record.returns ?? record.value?.callType ?? record.value?.call ?? record.condition?.callType ?? record.condition?.call;
+}
+
 function isNumericOperator(op) {
   return op === '+' || op === '-' || op === '*' || op === '/' || op === '%';
 }
@@ -142,12 +157,28 @@ function isNumericType(value) {
   return ['number', 'numeric', 'int', 'integer', 'float', 'double', 'decimal'].includes(String(value ?? '').trim().toLowerCase());
 }
 
+function isSupportedCallType(value) {
+  return ['text', 'string', 'bool', 'boolean', 'number', 'numeric', 'int', 'integer', 'float', 'double', 'decimal', 'json'].includes(String(value ?? '').trim().toLowerCase());
+}
+
 function isOrderedComparison(op) {
   return op === '>' || op === '>=' || op === '<' || op === '<=';
 }
 
 function isNumericComparison(node) {
   return node.left?.kind === 'literal' && typeof node.left.value === 'number' && node.right?.kind === 'literal' && typeof node.right.value === 'number';
+}
+
+function hasCallExpression(node) {
+  if (!node || typeof node !== 'object') return false;
+  if (node.kind === 'call') return true;
+  if (node.kind === 'binary' || node.kind === 'logical') return hasCallExpression(node.left) || hasCallExpression(node.right);
+  if (node.kind === 'unary') return hasCallExpression(node.argument);
+  return false;
+}
+
+function isBlockedCallCallee(callee) {
+  return ['globalThis', 'process', 'window', 'document', 'constructor', 'prototype', '__proto__', 'env', 'input', 'state', 'patches'].includes(callee);
 }
 
 function parenthesizeExpression(expression, node) {

@@ -3,6 +3,7 @@ import { actionNode, capabilityNode, createDocument, effectNode, entityNode, ext
 import { emitTypeScript, emitTypeScriptWithSourceMap, renderTypeScriptAst, renderTypeScriptAstWithSourceMap, toTypeScriptAst } from '../dist/index.js';
 const ref = (name, scope, path) => ({ kind: 'ref', name, scope, path });
 const literal = (value) => ({ kind: 'literal', value });
+const call = (callee, args, callType) => ({ kind: 'call', callee, args, callType });
 const doc = createDocument({ id: 'mod_todo', name: 'TodoApp', nodes: [
   typeNode({ id: 'type_input', name: 'TodoInput', fields: [
     { id: 'input_title', name: 'title', type: 'Text' },
@@ -45,7 +46,7 @@ const doc = createDocument({ id: 'mod_todo', name: 'TodoApp', nodes: [
   nativeSourceNode({ id: 'native_todo_ts', name: 'TodoTs', language: 'typescript', parser: 'typescript', sourcePath: 'todo.ts', sourceHash: 'sha256:todo', symbol: 'Todo', frontierNodeIds: ['ent_todo', 'action_add'], losses: [{ id: 'loss_decorator', kind: 'unsupportedSyntax', message: 'decorator retained in native source', severity: 'warning' }] }),
   externNode({ id: 'extern_persist', name: 'persistTodo', language: 'typescript', symbol: 'persistTodo', signature: { input: 'TodoInput', returns: 'Patch' } }),
   actionNode({ id: 'action_add', name: 'addTodo', input: 'TodoInput', returns: 'Patch', body: [
-    { kind: 'let', id: 'bind_normalized_title', name: 'normalizedTitle', value: { expression: 'input.title', expressionAst: ref('input.title', 'input', ['title']) } },
+    { kind: 'let', id: 'bind_normalized_title', name: 'normalizedTitle', callType: 'Text', value: { expression: 'normalizeTitle(input.title)', expressionAst: call('normalizeTitle', [ref('input.title', 'input', ['title'])], 'Text'), callType: 'Text' } },
     { kind: 'let', id: 'bind_can_write', name: 'canWrite', value: { expression: 'input.enabled == true', expressionAst: { kind: 'binary', op: '==', left: ref('input.enabled', 'input', ['enabled']), right: literal(true) } } },
     { kind: 'let', id: 'bind_next_count', name: 'nextCount', valueType: 'Number', value: { expression: 'input.count + 1', expressionAst: { kind: 'binary', op: '+', left: ref('input.count', 'input', ['count']), right: literal(1) }, valueType: 'Number' } },
     { kind: 'let', id: 'bind_has_count', name: 'hasCount', comparisonType: 'Number', value: { expression: 'input.count > 0', expressionAst: { kind: 'binary', op: '>', left: ref('input.count', 'input', ['count']), right: literal(0) }, comparisonType: 'Number' } },
@@ -168,7 +169,7 @@ assert.match(out, /ReadonlyMap<string, Todo>/);
 assert.match(out, /export declare function persistTodo\(input: TodoInput\): FrontierPatchOperation\[\]/);
 assert.match(out, /export function addTodo/);
 assert.match(out, /const patches: FrontierPatchOperation\[\] = \[\];/);
-assert.match(out, /const normalizedTitle = input\.title;/);
+assert.match(out, /const normalizedTitle = normalizeTitle\(input\.title\);/);
 assert.match(out, /const canWrite = \(input\.enabled === true\);/);
 assert.match(out, /const nextCount = \(input\.count \+ 1\);/);
 assert.match(out, /const hasCount = \(input\.count > 0\);/);
@@ -200,3 +201,9 @@ const unsupportedComparisonDoc = createDocument({ id: 'bad_comparison', name: 'B
   ] })
 ] });
 assert.throws(() => emitTypeScript(unsupportedComparisonDoc), /Unsupported Frontier action expression operator/);
+const unsupportedCallDoc = createDocument({ id: 'bad_call', name: 'BadCall', nodes: [
+  actionNode({ id: 'action_bad_call', name: 'badCallAction', returns: 'Patch', body: [
+    { kind: 'let', id: 'bad_call', name: 'badCall', value: { expressionAst: call('normalizeTitle', [ref('input.title', 'input', ['title'])]) } }
+  ] })
+] });
+assert.throws(() => emitTypeScript(unsupportedCallDoc), /Unsupported Frontier action call type/);
