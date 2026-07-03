@@ -40,7 +40,13 @@ const doc = createDocument({ id: 'mod_todo', name: 'TodoApp', nodes: [
   targetNode({ id: 'target_ts', name: 'typescript', target: { language: 'typescript', emitPath: 'todo.ts', moduleFormat: 'esm' } }),
   nativeSourceNode({ id: 'native_todo_ts', name: 'TodoTs', language: 'typescript', parser: 'typescript', sourcePath: 'todo.ts', sourceHash: 'sha256:todo', symbol: 'Todo', frontierNodeIds: ['ent_todo', 'action_add'], losses: [{ id: 'loss_decorator', kind: 'unsupportedSyntax', message: 'decorator retained in native source', severity: 'warning' }] }),
   externNode({ id: 'extern_persist', name: 'persistTodo', language: 'typescript', symbol: 'persistTodo', signature: { input: 'TodoInput', returns: 'Patch' } }),
-  actionNode({ id: 'action_add', name: 'addTodo', input: 'TodoInput', returns: 'Patch' })
+  actionNode({ id: 'action_add', name: 'addTodo', input: 'TodoInput', returns: 'Patch', body: [
+    { kind: 'patch', op: 'set', id: 'patch_title', name: 'title', path: '/todos/title', value: { expression: 'input.title' } },
+    { kind: 'patch', op: 'insert', id: 'patch_insert', name: 'item', path: '/todos', value: { expression: 'input' } },
+    { kind: 'patch', op: 'remove', id: 'patch_remove', name: 'oldTitle', path: '/todos/oldTitle' },
+    { kind: 'callEffect', id: 'call_storage', name: 'persist', capability: 'storage.write', input: { expression: 'input' } },
+    { kind: 'return', id: 'return_patches', value: { expression: 'patches' } }
+  ] })
 ] });
 const out = emitTypeScript(doc);
 const ast = toTypeScriptAst(doc);
@@ -142,3 +148,10 @@ assert.match(out, /export interface TodoDbState/);
 assert.match(out, /ReadonlyMap<string, Todo>/);
 assert.match(out, /export declare function persistTodo\(input: TodoInput\): FrontierPatchOperation\[\]/);
 assert.match(out, /export function addTodo/);
+assert.match(out, /const patches: FrontierPatchOperation\[\] = \[\];/);
+assert.match(out, /patches\.push\(\{ op: "set", path: "\/todos\/title", value: input\.title \}\);/);
+assert.match(out, /patches\.push\(\{ op: "insert", path: "\/todos", value: input \}\);/);
+assert.match(out, /patches\.push\(\{ op: 'remove', path: "\/todos\/oldTitle" \}\);/);
+assert.match(out, /const invoke_call_storage = env\["storage\.write"\] as \(\(input: unknown\) => unknown\) \| undefined;/);
+assert.match(out, /void invoke_call_storage\?\.\(input\);/);
+assert.match(out, /return patches as FrontierPatchOperation\[\];/);

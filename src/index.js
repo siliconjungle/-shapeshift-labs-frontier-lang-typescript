@@ -1,3 +1,4 @@
+import { renderActionBodyStatements } from './action-body.js';
 import { renderSemanticDescriptorDeclaration, semanticDescriptorDeclarations } from './semantic-descriptors.js';
 import { viewPropsType, viewRenderNodeToAst } from './render-descriptors.js';
 import { renderRuntimeTypes, renderViewRenderFunctionDeclaration } from './render-printers.js';
@@ -140,6 +141,7 @@ export function toTypeScriptAst(document, options = {}) {
         name: safeIdentifier(node.name),
         inputType: node.input ? toTypeScriptType(node.input) : 'unknown',
         returnType: node.returns ? toTypeScriptType(node.returns) : 'FrontierPatchOperation[]',
+        body: node.body ?? [],
         sourceRef: sourceRef(node)
       });
     }
@@ -196,7 +198,9 @@ export function renderTypeScriptAstWithSourceMap(ast, options = {}) {
       push(`export declare function ${declaration.name}(input: ${declaration.inputType}): ${declaration.returnType};`, '');
     }
     if (declaration.kind === 'actionFunction') {
-      push(`export function ${declaration.name}(`, '  state: unknown,', `  input: ${declaration.inputType},`, '  env: Record<string, unknown> = {}', `): ${declaration.returnType} {`, '  void state;', '  void input;', '  void env;', `  return [] as ${declaration.returnType};`, '}', '');
+      push(`export function ${declaration.name}(`, '  state: unknown,', `  input: ${declaration.inputType},`, '  env: Record<string, unknown> = {}', `): ${declaration.returnType} {`);
+      for (const statement of renderActionBodyStatements(declaration, { safeIdentifier })) push(`  ${statement}`);
+      push('}', '');
     }
     const generatedSpan = declarationBlockSpan(lines, startIndex, startLine, declaration, target, options.targetPath);
     if (declaration.sourceRef?.semanticNodeId && generatedSpan) {
@@ -278,13 +282,7 @@ function typeNodeToAst(node) {
   if (node.variants?.length) {
     return { kind: 'typeAlias', name: safeIdentifier(node.name), parameters: params, type: toTypeScriptType({ kind: 'union', variants: node.variants }), sourceRef: sourceRef(node) };
   }
-  return {
-    kind: 'interface',
-    name: safeIdentifier(node.name),
-    parameters: params,
-    fields: (node.fields ?? []).map((field) => ({ name: safeIdentifier(field.name), type: toTypeScriptType(field.type), optional: Boolean(field.optional) })),
-    sourceRef: sourceRef(node, { regionIds: (node.fields ?? []).map((field) => field.id) })
-  };
+  return { kind: 'interface', name: safeIdentifier(node.name), parameters: params, fields: (node.fields ?? []).map((field) => ({ name: safeIdentifier(field.name), type: toTypeScriptType(field.type), optional: Boolean(field.optional) })), sourceRef: sourceRef(node, { regionIds: (node.fields ?? []).map((field) => field.id) }) };
 }
 
 function declarationBlockSpan(lines, startIndex, startLine, declaration, target, targetPath) {
