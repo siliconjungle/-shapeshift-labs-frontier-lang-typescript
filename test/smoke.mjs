@@ -42,10 +42,13 @@ const doc = createDocument({ id: 'mod_todo', name: 'TodoApp', nodes: [
   nativeSourceNode({ id: 'native_todo_ts', name: 'TodoTs', language: 'typescript', parser: 'typescript', sourcePath: 'todo.ts', sourceHash: 'sha256:todo', symbol: 'Todo', frontierNodeIds: ['ent_todo', 'action_add'], losses: [{ id: 'loss_decorator', kind: 'unsupportedSyntax', message: 'decorator retained in native source', severity: 'warning' }] }),
   externNode({ id: 'extern_persist', name: 'persistTodo', language: 'typescript', symbol: 'persistTodo', signature: { input: 'TodoInput', returns: 'Patch' } }),
   actionNode({ id: 'action_add', name: 'addTodo', input: 'TodoInput', returns: 'Patch', body: [
-    { kind: 'patch', op: 'set', id: 'patch_title', name: 'title', path: '/todos/title', value: { expression: 'input.title' } },
-    { kind: 'if', id: 'guard_enabled', name: 'enabled', condition: { expression: 'input.enabled' }, body: [
-      { kind: 'patch', op: 'set', id: 'patch_status', name: 'status', path: '/todos/status', value: { value: 'ready' } },
-      { kind: 'callEffect', id: 'call_guarded_storage', name: 'guardedPersist', capability: 'storage.write', input: { expression: 'input' } }
+    { kind: 'let', id: 'bind_normalized_title', name: 'normalizedTitle', value: { expression: 'input.title' } },
+    { kind: 'let', id: 'bind_can_write', name: 'canWrite', value: { expression: 'input.enabled' } },
+    { kind: 'patch', op: 'set', id: 'patch_title', name: 'title', path: '/todos/title', value: { expression: 'normalizedTitle' } },
+    { kind: 'if', id: 'guard_enabled', name: 'enabled', condition: { expression: 'canWrite' }, body: [
+      { kind: 'let', id: 'bind_status_text', name: 'statusText', value: { value: 'ready' } },
+      { kind: 'patch', op: 'set', id: 'patch_status', name: 'status', path: '/todos/status', value: { expression: 'statusText' } },
+      { kind: 'callEffect', id: 'call_guarded_storage', name: 'guardedPersist', capability: 'storage.write', input: { expression: 'normalizedTitle' } }
     ] },
     { kind: 'patch', op: 'insert', id: 'patch_insert', name: 'item', path: '/todos', value: { expression: 'input' } },
     { kind: 'patch', op: 'remove', id: 'patch_remove', name: 'oldTitle', path: '/todos/oldTitle' },
@@ -155,8 +158,10 @@ assert.match(out, /ReadonlyMap<string, Todo>/);
 assert.match(out, /export declare function persistTodo\(input: TodoInput\): FrontierPatchOperation\[\]/);
 assert.match(out, /export function addTodo/);
 assert.match(out, /const patches: FrontierPatchOperation\[\] = \[\];/);
-assert.match(out, /patches\.push\(\{ op: "set", path: "\/todos\/title", value: input\.title \}\);/);
-assert.match(out, /if \(input\.enabled\) \{\n    patches\.push\(\{ op: "set", path: "\/todos\/status", value: "ready" \}\);\n    const invoke_call_guarded_storage = env\["storage\.write"\] as \(\(input: unknown\) => unknown\) \| undefined;\n    void invoke_call_guarded_storage\?\.\(input\);\n  \}/);
+assert.match(out, /const normalizedTitle = input\.title;/);
+assert.match(out, /const canWrite = input\.enabled;/);
+assert.match(out, /patches\.push\(\{ op: "set", path: "\/todos\/title", value: normalizedTitle \}\);/);
+assert.match(out, /if \(canWrite\) \{\n    const statusText = "ready";\n    patches\.push\(\{ op: "set", path: "\/todos\/status", value: statusText \}\);\n    const invoke_call_guarded_storage = env\["storage\.write"\] as \(\(input: unknown\) => unknown\) \| undefined;\n    void invoke_call_guarded_storage\?\.\(normalizedTitle\);\n  \}/);
 assert.match(out, /patches\.push\(\{ op: "insert", path: "\/todos", value: input \}\);/);
 assert.match(out, /patches\.push\(\{ op: 'remove', path: "\/todos\/oldTitle" \}\);/);
 assert.match(out, /const invoke_call_storage = env\["storage\.write"\] as \(\(input: unknown\) => unknown\) \| undefined;/);
