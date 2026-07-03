@@ -12,12 +12,12 @@ function renderActionBodyRecords(body, { safeIdentifier, returnType, locals }) {
   for (const record of body) {
     if (record.kind === 'let') {
       const local = safeIdentifier(record.name ?? record.id ?? 'binding');
-      statements.push(`const ${local} = ${actionValueExpression(record.value, { safeIdentifier, locals, valueType: actionRecordValueType(record) })};`);
+      statements.push(`const ${local} = ${actionValueExpression(record.value, { safeIdentifier, locals, valueType: actionRecordValueType(record), comparisonType: actionRecordComparisonType(record) })};`);
       locals.set(record.name, local);
       continue;
     }
     if (record.kind === 'patch' && (record.op === 'set' || record.op === 'insert' || record.op === 'merge')) {
-      statements.push(`patches.push({ op: ${JSON.stringify(record.op)}, path: ${JSON.stringify(record.path ?? '')}, value: ${actionValueExpression(record.value, { safeIdentifier, locals, valueType: actionRecordValueType(record) })} });`);
+      statements.push(`patches.push({ op: ${JSON.stringify(record.op)}, path: ${JSON.stringify(record.path ?? '')}, value: ${actionValueExpression(record.value, { safeIdentifier, locals, valueType: actionRecordValueType(record), comparisonType: actionRecordComparisonType(record) })} });`);
       continue;
     }
     if (record.kind === 'patch' && record.op === 'remove') {
@@ -31,7 +31,7 @@ function renderActionBodyRecords(body, { safeIdentifier, returnType, locals }) {
       continue;
     }
     if (record.kind === 'if') {
-      statements.push(`if (${actionConditionExpression(record.condition, { safeIdentifier, locals })}) {`);
+      statements.push(`if (${actionConditionExpression(record.condition, { safeIdentifier, locals, comparisonType: actionRecordComparisonType(record) })}) {`);
       for (const statement of renderActionBodyRecords(record.body ?? [], { safeIdentifier, returnType, locals: new Map(locals) })) statements.push(`  ${statement}`);
       statements.push('}');
       continue;
@@ -90,8 +90,9 @@ function structuredActionExpression(node, context = {}) {
       return `(${structuredActionExpression(node.left, { ...context, expressionContext: 'value' })} ${node.op} ${structuredActionExpression(node.right, { ...context, expressionContext: 'value' })})`;
     }
     const op = targetComparisonOperator(node.op);
-    if (isOrderedComparison(node.op) && !isNumericComparison(node)) throw new Error(`Unsupported Frontier action expression operator: ${node.op}`);
-    return `(${structuredActionExpression(node.left, { ...context, expressionContext: 'value' })} ${op} ${structuredActionExpression(node.right, { ...context, expressionContext: 'value' })})`;
+    if (isOrderedComparison(node.op) && !isNumericComparison(node) && !isNumericType(context.comparisonType)) throw new Error(`Unsupported Frontier action expression operator: ${node.op}`);
+    const valueContext = isOrderedComparison(node.op) ? { ...context, expressionContext: 'value', valueType: context.comparisonType } : { ...context, expressionContext: 'value' };
+    return `(${structuredActionExpression(node.left, valueContext)} ${op} ${structuredActionExpression(node.right, valueContext)})`;
   }
   throw new Error(`Unsupported Frontier action expression: ${node.kind ?? 'unknown'}`);
 }
@@ -127,6 +128,10 @@ function targetComparisonOperator(op) {
 
 function actionRecordValueType(record) {
   return record.valueType ?? record.type ?? record.value?.valueType ?? record.value?.type;
+}
+
+function actionRecordComparisonType(record) {
+  return record.comparisonType ?? record.compareType ?? record.compare ?? record.value?.comparisonType ?? record.value?.compareType ?? record.condition?.comparisonType ?? record.condition?.compareType;
 }
 
 function isNumericOperator(op) {

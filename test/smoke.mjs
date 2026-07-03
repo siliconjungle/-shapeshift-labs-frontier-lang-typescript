@@ -48,8 +48,12 @@ const doc = createDocument({ id: 'mod_todo', name: 'TodoApp', nodes: [
     { kind: 'let', id: 'bind_normalized_title', name: 'normalizedTitle', value: { expression: 'input.title', expressionAst: ref('input.title', 'input', ['title']) } },
     { kind: 'let', id: 'bind_can_write', name: 'canWrite', value: { expression: 'input.enabled == true', expressionAst: { kind: 'binary', op: '==', left: ref('input.enabled', 'input', ['enabled']), right: literal(true) } } },
     { kind: 'let', id: 'bind_next_count', name: 'nextCount', valueType: 'Number', value: { expression: 'input.count + 1', expressionAst: { kind: 'binary', op: '+', left: ref('input.count', 'input', ['count']), right: literal(1) }, valueType: 'Number' } },
+    { kind: 'let', id: 'bind_has_count', name: 'hasCount', comparisonType: 'Number', value: { expression: 'input.count > 0', expressionAst: { kind: 'binary', op: '>', left: ref('input.count', 'input', ['count']), right: literal(0) }, comparisonType: 'Number' } },
     { kind: 'patch', op: 'set', id: 'patch_title', name: 'title', path: '/todos/title', value: { expression: 'normalizedTitle', expressionAst: ref('normalizedTitle', 'local', ['normalizedTitle']) } },
     { kind: 'patch', op: 'set', id: 'patch_count', name: 'count', path: '/todos/count', valueType: 'Number', value: { expression: 'nextCount', expressionAst: ref('nextCount', 'local', ['nextCount']), valueType: 'Number' } },
+    { kind: 'if', id: 'guard_counted', name: 'counted', comparisonType: 'Number', condition: { expression: 'input.count > 0', expressionAst: { kind: 'binary', op: '>', left: ref('input.count', 'input', ['count']), right: literal(0) }, comparisonType: 'Number' }, body: [
+      { kind: 'patch', op: 'set', id: 'patch_counted', name: 'counted', path: '/todos/counted', value: { expression: 'hasCount', expressionAst: ref('hasCount', 'local', ['hasCount']) } }
+    ] },
     { kind: 'if', id: 'guard_enabled', name: 'enabled', condition: { expression: 'canWrite && input.enabled', expressionAst: { kind: 'logical', op: '&&', left: ref('canWrite', 'local', ['canWrite']), right: ref('input.enabled', 'input', ['enabled']) } }, body: [
       { kind: 'let', id: 'bind_status_text', name: 'statusText', value: { value: 'ready' } },
       { kind: 'patch', op: 'set', id: 'patch_status', name: 'status', path: '/todos/status', value: { expression: 'statusText', expressionAst: ref('statusText', 'local', ['statusText']) } },
@@ -167,8 +171,10 @@ assert.match(out, /const patches: FrontierPatchOperation\[\] = \[\];/);
 assert.match(out, /const normalizedTitle = input\.title;/);
 assert.match(out, /const canWrite = \(input\.enabled === true\);/);
 assert.match(out, /const nextCount = \(input\.count \+ 1\);/);
+assert.match(out, /const hasCount = \(input\.count > 0\);/);
 assert.match(out, /patches\.push\(\{ op: "set", path: "\/todos\/title", value: normalizedTitle \}\);/);
 assert.match(out, /patches\.push\(\{ op: "set", path: "\/todos\/count", value: nextCount \}\);/);
+assert.match(out, /if \(\(input\.count > 0\)\) \{\n    patches\.push\(\{ op: "set", path: "\/todos\/counted", value: hasCount \}\);\n  \}/);
 assert.match(out, /if \(canWrite && input\.enabled\) \{\n    const statusText = "ready";\n    patches\.push\(\{ op: "set", path: "\/todos\/status", value: statusText \}\);\n    const invoke_call_guarded_storage = env\["storage\.write"\] as \(\(input: unknown\) => unknown\) \| undefined;\n    void invoke_call_guarded_storage\?\.\(normalizedTitle\);\n  \}/);
 assert.match(out, /patches\.push\(\{ op: "insert", path: "\/todos", value: input \}\);/);
 assert.match(out, /patches\.push\(\{ op: 'remove', path: "\/todos\/oldTitle" \}\);/);
@@ -188,3 +194,9 @@ const unsupportedRefDoc = createDocument({ id: 'bad_ref', name: 'BadRef', nodes:
   ] })
 ] });
 assert.throws(() => emitTypeScript(unsupportedRefDoc), /Unsupported Frontier action expression ref/);
+const unsupportedComparisonDoc = createDocument({ id: 'bad_comparison', name: 'BadComparison', nodes: [
+  actionNode({ id: 'action_bad_comparison', name: 'badComparisonAction', returns: 'Patch', body: [
+    { kind: 'let', id: 'bad_comparison', name: 'badComparison', value: { expressionAst: { kind: 'binary', op: '>', left: ref('input.count', 'input', ['count']), right: literal(0) } } }
+  ] })
+] });
+assert.throws(() => emitTypeScript(unsupportedComparisonDoc), /Unsupported Frontier action expression operator/);
