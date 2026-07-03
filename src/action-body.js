@@ -56,6 +56,15 @@ function renderActionBodyRecords(body, { safeIdentifier, returnType, locals }) {
       statements.push('}');
       continue;
     }
+    if (record.kind === 'forIn') {
+      const item = safeIdentifier(record.itemName ?? record.name ?? record.id ?? 'item');
+      const loopLocals = new Map(locals);
+      loopLocals.set(record.itemName ?? record.name, item);
+      statements.push(`for (const ${item} of ${actionValueExpression(record.collection, { safeIdentifier, locals })}) {`);
+      for (const statement of renderActionBodyRecords(record.body ?? [], { safeIdentifier, returnType, locals: loopLocals })) statements.push(`  ${statement}`);
+      statements.push('}');
+      continue;
+    }
     if (record.kind === 'return') {
       statements.push(`return ${actionValueExpression(record.value, { safeIdentifier, locals, valueType: actionRecordValueType(record), comparisonType: actionRecordComparisonType(record), callType: actionRecordCallType(record) })} as ${returnType};`);
     }

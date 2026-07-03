@@ -1,6 +1,6 @@
 {
   "name": "@shapeshift-labs/frontier-lang-typescript",
-  "version": "0.3.23",
+  "version": "0.3.24",
   "description": "TypeScript projection adapter for Frontier Lang semantic source documents.",
   "type": "module",
   "main": "./dist/index.js",
